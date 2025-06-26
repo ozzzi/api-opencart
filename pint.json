@@ -1,11 +1,12 @@
 
 {
-    "preset": "laravel",
+    "preset": "psr12",
     "notPath": [
         "tests/TestCase.php"
     ],
     "rules": {
         "array_push": true,
+        "concat_space": false,
         "backtick_to_shell_exec": true,
         "date_time_immutable": true,
         "declare_strict_types": true,
