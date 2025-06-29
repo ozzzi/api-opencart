@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
 /**
  * @property int $product_id
@@ -17,11 +18,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $image
  * @property float $price
  * @property float $cost
- * @property-read Collection<ProductDescription> $descriptions
+ * @property-read Collection<int, ProductDescription> $descriptions
  * @property-read Manufacturer $manufacturer
  * @property-read ProductCategory $category
- * @property-read Collection<Category> $categories
- * @property-read Collection<Review> $reviews
+ * @property-read Collection<int, Category> $categories
+ * @property-read Collection<int, Review> $reviews
  */
 final class Product extends Model
 {
@@ -30,7 +31,7 @@ final class Product extends Model
     protected $primaryKey = 'product_id';
 
     /**
-     * @return HasMany<ProductDescription>
+     * @return HasMany<ProductDescription, $this>
      */
     public function descriptions(): HasMany
     {
@@ -38,7 +39,7 @@ final class Product extends Model
     }
 
     /**
-     * @return HasOne<Manufacturer>
+     * @return HasOne<Manufacturer, $this>
      */
     public function manufacturer(): HasOne
     {
@@ -46,20 +47,23 @@ final class Product extends Model
     }
 
     /**
-     * @return HasOne<ProductCategory>
+     * @return HasOne<ProductCategory, $this>
      */
     public function category(): HasOne
     {
         return $this->hasOne(ProductCategory::class, 'product_id', 'product_id');
     }
 
+    /**
+     * @return BelongsToMany<Category, $this, Pivot, 'pivot'>
+     */
     public function categories(): BelongsToMany
     {
         return $this->belongsToMany(Category::class, 'product_to_category', 'product_id', 'category_id');
     }
 
     /**
-     * @return HasMany<Review>
+     * @return HasMany<Review, $this>
      */
     public function reviews(): HasMany
     {

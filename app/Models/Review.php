@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $text
  * @property string $reply
  * @property int $rating
- * @property int status
+ * @property int $status
  */
 final class Review extends Model
 {

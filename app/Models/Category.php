@@ -20,7 +20,7 @@ final class Category extends Model
     protected $primaryKey = 'category_id';
 
     /**
-     * @return HasMany<CategoryDescription>
+     * @return HasMany<CategoryDescription, $this>
      */
     public function description(): HasMany
     {
