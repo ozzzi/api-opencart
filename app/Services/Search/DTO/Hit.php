@@ -8,7 +8,7 @@ final class Hit
 {
     /**
      * @param string|int $id
-     * @param array<int, array<string, mixed>> $document
+     * @param array<string, mixed> $document
      * @param float|null $score
      * @param string|null $highlight
      */
