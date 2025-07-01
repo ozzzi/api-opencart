@@ -19,6 +19,11 @@ final readonly class SchemaConfig
     public array $facetAttributes;
 
     /**
+     * @var List<string>
+     */
+    public array $sortableAttributes;
+
+    /**
      * @param string $primaryKey
      * @param AbstractField[] $fields
      * @param int|array<string> $typoTolerance
@@ -31,6 +36,7 @@ final readonly class SchemaConfig
         $attributes = $this->getAttributes($this->fields);
         $this->searchableAttributes = $attributes['searchableAttributes'];
         $this->facetAttributes = $attributes['facetAttributes'];
+        $this->sortableAttributes = $attributes['sortableAttributes'];
     }
 
     /**
@@ -51,6 +57,10 @@ final readonly class SchemaConfig
 
             if ($field->facet) {
                 $attributes['facetAttributes'][] = $field->name;
+            }
+
+            if ($field->sortable) {
+                $attributes['sortableAttributes'][] = $field->name;
             }
         }
 
