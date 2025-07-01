@@ -31,7 +31,7 @@ final class CreateIndex extends Command
     }
 
     /**
-     * @return List<string>
+     * @return List<non-empty-string>
      */
     private function getStopWords(): array
     {
@@ -39,7 +39,7 @@ final class CreateIndex extends Command
 
         foreach (self::STOP_WORDS_FILES as $fileName) {
             try {
-                $words = $this->loadStopWordsFromFile($fileName);
+                $words = array_filter($this->loadStopWordsFromFile($fileName));
             } catch (JsonException) {
                 continue;
             }
