@@ -52,6 +52,16 @@ services:
         ports:
             - "6379:6379"
 
+    typesense:
+        image: typesense/typesense:28.0
+        container_name: typesense-api-opencart
+        restart: unless-stopped
+        ports:
+            - "8108:8108"
+        volumes:
+            - ./docker/typesense:/data
+        command: '--data-dir /data --api-key=1234567 --enable-cors'
+
     adminer:
         image: arm64v8/adminer
         restart: unless-stopped

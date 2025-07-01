@@ -37,4 +37,11 @@ return [
         ],
     ],
 
+    'search' => [
+        'key' => env('SEARCH_API_KEY', ''),
+        'host' => env('SEARCH_HOST', ''),
+        'port' => env('SEARCH_PORT', ''),
+        'model' => env('SEARCH_EMBEDDING_MODEL', 'ts/multilingual-e5-small'),
+        'distance_threshold' => env('SEARCH_DISTANCE_THRESHOLD', 0.2),
+    ],
 ];
