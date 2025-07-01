@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Builders\ProductBuilder;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -23,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @property-read ProductCategory $category
  * @property-read Collection<int, Category> $categories
  * @property-read Collection<int, Review> $reviews
+ * @method static Builder<Product> active()
  */
 final class Product extends Model
 {
@@ -68,5 +71,10 @@ final class Product extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class, 'product_id', 'product_id');
+    }
+
+    public function newEloquentBuilder($query): ProductBuilder
+    {
+        return new ProductBuilder($query);
     }
 }
