@@ -7,7 +7,7 @@ namespace App\Services\Search\Contracts;
 interface StopWord
 {
     /**
-     * @param List<string> $stopWords
+     * @param List<non-empty-string> $stopWords
      * @param array<string, string> $options
      * @return void
      */
