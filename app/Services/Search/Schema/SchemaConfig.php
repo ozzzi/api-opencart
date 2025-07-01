@@ -9,17 +9,17 @@ use App\Services\Search\DTO\Fields\AbstractField;
 final readonly class SchemaConfig
 {
     /**
-     * @var List<string>
+     * @var List<non-empty-string>
      */
     public array $searchableAttributes;
 
     /**
-     * @var List<string>
+     * @var List<non-empty-string>
      */
     public array $facetAttributes;
 
     /**
-     * @var List<string>
+     * @var List<non-empty-string>
      */
     public array $sortableAttributes;
 
@@ -41,7 +41,7 @@ final readonly class SchemaConfig
 
     /**
      * @param AbstractField[] $fields
-     * @return array<string, List<string>>
+     * @return array<string, List<non-empty-string>>
      */
     private function getAttributes(array $fields): array
     {
@@ -51,6 +51,10 @@ final readonly class SchemaConfig
         ];
 
         foreach ($fields as $field) {
+            if (!$field->name) {
+                continue;
+            }
+
             if ($field->searchable) {
                 $attributes['searchableAttributes'][] = $field->name;
             }
