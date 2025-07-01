@@ -12,7 +12,7 @@ abstract class AbstractField
      * @param bool $searchable
      * @param bool $facet
      * @param bool $sortable
-     * @param array<string, string> $options
+     * @param array<string, mixed> $options
      * @param int $weight
      */
     public function __construct(

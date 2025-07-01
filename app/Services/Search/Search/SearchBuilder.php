@@ -12,7 +12,7 @@ final class SearchBuilder
     private string $query = '';
 
     /**
-     * @var array<int, array<string, mixed>>
+     * @var array<int, array<string, string|int|float>>
      */
     private array $filters = [];
 
@@ -43,7 +43,7 @@ final class SearchBuilder
         return $this;
     }
 
-    public function addFilter(string $attribute, mixed $value, string $operator = '='): self
+    public function addFilter(string $attribute, string|int|float $value, string $operator = '='): self
     {
         $this->filters[] = [
             'attribute' => $attribute,
@@ -76,7 +76,7 @@ final class SearchBuilder
     }
 
     /**
-     * @param array<string, string> $options
+     * @param array<string, mixed> $options
      */
     public function options(array $options): self
     {

@@ -11,17 +11,22 @@ interface Indexer
     public function deleteIndex(string $indexName): void;
 
     /**
-     * @param array<int, array<string, mixed>> $documents
+     * @param array<int, array<string, string|int|float>> $documents
      */
     public function bulkAdd(string $indexName, array $documents): void;
 
     /**
-     * @param array<string, mixed> $document
+     * @param array<int, array<string, string|int|float>> $documents
+     */
+    public function bulkUpsert(string $indexName, array $documents): void;
+
+    /**
+     * @param array<string, string|int|float> $document
      */
     public function addDocument(string $indexName, array $document): void;
 
     /**
-     * @param array<string, mixed> $document
+     * @param array<string, string|int|float> $document
      */
     public function updateDocument(string $indexName, array $document): void;
 

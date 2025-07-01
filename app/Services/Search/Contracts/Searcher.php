@@ -9,7 +9,7 @@ use App\Services\Search\DTO\Result;
 interface Searcher
 {
     /**
-     * @param array<int, array<string, mixed>> $filters
+     * @param array<int, array<string, string|int|float>> $filters
      * @param array<string, string> $sorts
      * @param array<string, mixed> $options
      */
