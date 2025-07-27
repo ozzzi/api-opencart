@@ -197,7 +197,7 @@ final class TypesenseSearcher implements Searcher
 
     /**
      * @param array<int, array<string, mixed>> $results
-     * @return array<string, array<int, Facet>>
+     * @return array<int, List<Facet>>
      */
     private function getFacets(array $results): array
     {

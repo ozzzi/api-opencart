@@ -9,7 +9,7 @@ final class Result
     /**
      * @param Hit[] $hits
      * @param int $total
-     * @param array<string, array<int, Facet>> $facets
+     * @param array<int, List<Facet>> $facets
      */
     public function __construct(
         public readonly array $hits,
