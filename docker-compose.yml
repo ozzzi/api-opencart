@@ -14,6 +14,20 @@ services:
             - db
             - redis
 
+    vector-api:
+        build:
+            context: .
+            dockerfile: docker/embedder/Dockerfile
+        container_name: vector-api-opencart
+        ports:
+            - "8088:8000"
+        environment:
+            API_TOKEN: ${API_TOKEN}
+            SEARCH_EMBEDDING_MODEL: ${SEARCH_EMBEDDING_MODEL}
+        volumes:
+            -  ./docker/embedder/app:/app
+        restart: unless-stopped
+
     webserver:
         image: arm64v8/nginx:alpine
         container_name: webserver-api-opencart
@@ -52,18 +66,77 @@ services:
         ports:
             - "6379:6379"
 
-    typesense:
-        image: typesense/typesense:28.0
-        container_name: typesense-api-opencart
-        restart: unless-stopped
-        ports:
-            - "8108:8108"
+    opensearch:
+        image: opensearchproject/opensearch:3
+        container_name: opensearch-api-opencart
+        environment:
+            discovery.type: single-node
+            bootstrap.memory_lock: true
+            OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+            OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${SEARCH_API_KEY}
+        command: |
+            bash -c "
+            if [ ! -d '/usr/share/opensearch/plugins/opensearch-knn' ]; then
+                /usr/share/opensearch/bin/opensearch-plugin install opensearch-knn --batch
+            fi &&
+            if [ ! -d '/usr/share/opensearch/plugins/analysis-phonetic' ]; then
+                /usr/share/opensearch/bin/opensearch-plugin install analysis-phonetic --batch
+            fi &&
+                /usr/share/opensearch/opensearch-docker-entrypoint.sh opensearch
+            "
+        ulimits:
+            memlock:
+                soft: -1
+                hard: -1
         volumes:
-            - ./docker/typesense:/data
-        command: '--data-dir /data --api-key=1234567 --enable-cors'
+            #- ./docker/opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+            - ./docker/opensearch/data:/usr/share/opensearch/data
+            - ./docker/opensearch/hunspell:/usr/share/opensearch/config/hunspell
+            - opensearch-data:/usr/share/opensearch/data
+        ports:
+            - 9200:9200
+            - 9600:9600
+
+    hunspell-setup:
+        image: alpine:latest
+        container_name: hunspell-setup
+        volumes:
+            - ./docker/opensearch/hunspell:/hunspell
+        command: |
+            sh -c "
+              apk add --no-cache wget unzip &&
+              mkdir -p /hunspell/ru_RU /hunspell/uk_UA &&
+              cd /hunspell/ru_RU &&
+              wget -O uk_UA.dic https://raw.githubusercontent.com/LibreOffice/dictionaries/master/ru_RU/ru_RU.dic &&
+              wget -O uk_UA.aff https://raw.githubusercontent.com/LibreOffice/dictionaries/master/ru_RU/ru_RU.aff &&
+              cd /hunspell/uk_UA &&
+              wget -O uk_UA.dic https://raw.githubusercontent.com/LibreOffice/dictionaries/master/uk_UA/uk_UA.dic &&
+              wget -O uk_UA.aff https://raw.githubusercontent.com/LibreOffice/dictionaries/master/uk_UA/uk_UA.aff
+            "
+        depends_on:
+            - opensearch
+
+    opensearch-dashboards:
+        image: opensearchproject/opensearch-dashboards:3
+        container_name: opensearch-dashboards
+        ports:
+            - 5601:5601
+        expose:
+            - '5601'
+        #volumes:
+            #- ./docker/opensearch/dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+        environment:
+            OPENSEARCH_HOSTS: https://opensearch-api-opencart:9200
+            OPENSEARCH_USERNAME: ${SEARCH_USER}
+            OPENSEARCH_PASSWORD: ${SEARCH_API_KEY}
+        depends_on:
+            - opensearch
 
     adminer:
         image: arm64v8/adminer
         restart: unless-stopped
         ports:
             - 8000:8080
+
+volumes:
+    opensearch-data:
