@@ -24,12 +24,12 @@ final readonly class SchemaConfig
     public array $sortableAttributes;
 
     /**
-     * @param string $primaryKey
+     * @param string|int $primaryKey
      * @param AbstractField[] $fields
      * @param int|array<string> $typoTolerance
      */
     public function __construct(
-        public string    $primaryKey,
+        public string|int $primaryKey,
         public array     $fields,
         public int|array $typoTolerance = 2,
     ) {

@@ -106,15 +106,9 @@ final class SearchController extends Controller
     private function setOptions(SearchBuilder $searchBuilder, array $data): self
     {
         $excludeFields = $data['exclude_fields'] ?? [];
-        $excludeFields = implode(',', array_merge($excludeFields, ['embedding']));
-
-        $distanceThreshold = config('services.search.distance_threshold');
 
         $searchBuilder->options([
-            'vector_query' => "embedding:([], distance_threshold:$distanceThreshold)",
-            'rerank_hybrid_matches' => true,
             'exclude_fields' => $excludeFields,
-            'stopwords' => 'stopwords_cyrillic',
         ]);
 
         return $this;

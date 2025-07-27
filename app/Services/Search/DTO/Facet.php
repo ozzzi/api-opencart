@@ -8,7 +8,7 @@ final class Facet
 {
     public function __construct(
         public readonly int $count,
-        public readonly string $value
+        public readonly string|int $value
     ) {
     }
 }

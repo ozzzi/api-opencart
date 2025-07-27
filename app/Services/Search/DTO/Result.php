@@ -4,17 +4,21 @@ declare(strict_types=1);
 
 namespace App\Services\Search\DTO;
 
-final class Result
+final readonly class Result
 {
     /**
      * @param Hit[] $hits
      * @param int $total
-     * @param array<string, array<int, Facet>> $facets
+     * @param array<int, List<Facet>> $facets
+     * @param string[] $suggest
+     * @param array<string, string> $didYouMean
      */
     public function __construct(
-        public readonly array $hits,
-        public readonly int $total = 0,
-        public readonly array $facets = []
+        public array $hits,
+        public int   $total = 0,
+        public array $facets = [],
+        public array $suggest = [],
+        public array $didYouMean = [],
     ) {
     }
 }
