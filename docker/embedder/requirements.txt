@@ -1,0 +1,6 @@
+fastapi
+numpy
+uvicorn[standard]
+sentence-transformers
+python-dotenv
+pydantic

@@ -10,6 +10,7 @@
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
+        "opensearch-project/opensearch-php": "^2.4",
         "predis/predis": "^3.0",
         "typesense/typesense-php": "^5.1"
     },

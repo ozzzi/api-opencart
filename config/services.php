@@ -39,9 +39,14 @@ return [
 
     'search' => [
         'key' => env('SEARCH_API_KEY', ''),
+        'user' => env('SEARCH_USER', ''),
         'host' => env('SEARCH_HOST', ''),
         'port' => env('SEARCH_PORT', ''),
-        'model' => env('SEARCH_EMBEDDING_MODEL', 'ts/multilingual-e5-small'),
+        'ssl' => env('SEARCH_SSL', false),
+        'model' => env('SEARCH_EMBEDDING_MODEL', ''),
+        'model_id' => env('OPENSEARCH_MODEL_ID', ''),
+        'embedder_url' => env('EMBEDDED_URL', ''),
+        'debug' => env('SEARCH_DEBUG', false),
         'distance_threshold' => env('SEARCH_DISTANCE_THRESHOLD', 0.2),
     ],
 ];
