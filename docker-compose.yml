@@ -40,6 +40,7 @@ services:
     webserver:
         image: arm64v8/nginx:alpine
         container_name: webserver-api-opencart
+        platform: linux/amd64
         restart: unless-stopped
         tty: true
         volumes:
@@ -53,6 +54,7 @@ services:
     redis:
         image: redis
         container_name: redis-api-opencart
+        platform: linux/amd64
         command: redis-server --requirepass ${REDIS_PASSWORD}
         restart: unless-stopped
         networks:
