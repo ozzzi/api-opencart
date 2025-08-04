@@ -5,6 +5,7 @@ services:
             dockerfile: docker/php/Dockerfile
         image: digitalocean.com/php:8.2
         container_name: php-api-opencart
+        platform: linux/amd64
         restart: unless-stopped
         tty: true
         working_dir: /var/www
@@ -60,6 +61,7 @@ services:
     opensearch:
         image: opensearchproject/opensearch:3
         container_name: opensearch-api-opencart
+        platform: linux/amd64
         environment:
             discovery.type: single-node
             bootstrap.memory_lock: true
