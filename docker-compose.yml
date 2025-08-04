@@ -38,7 +38,7 @@ services:
             - api
 
     webserver:
-        image: arm64v8/nginx:alpine
+        image: nginx:alpine
         container_name: webserver-api-opencart
         platform: linux/amd64
         restart: unless-stopped
