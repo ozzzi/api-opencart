@@ -17,8 +17,8 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip sodium in
 
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-COPY php.ini /usr/local/etc/php/conf.d/laravel.ini
-COPY php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
+COPY ./php.ini /usr/local/etc/php/conf.d/laravel.ini
+COPY ./php-fpm.conf /usr/local/etc/php-fpm.d/www.conf
 COPY . /var/www
 
 RUN usermod -u 1001 www-data && groupmod -g 1001 www-data
