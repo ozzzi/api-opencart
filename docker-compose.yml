@@ -18,7 +18,6 @@ services:
             - PHP_POST_MAX_SIZE=64M
             - PHP_DISPLAY_ERROR=off
         depends_on:
-            - db
             - redis
         networks:
             - api
