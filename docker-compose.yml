@@ -18,8 +18,6 @@ services:
             - PHP_UPLOAD_MAX_FILESIZE=64M
             - PHP_POST_MAX_SIZE=64M
             - PHP_DISPLAY_ERROR=off
-        depends_on:
-            - redis
         networks:
             - api
 
@@ -55,7 +53,7 @@ services:
         image: redis
         container_name: redis-api-opencart
         platform: linux/amd64
-        command: redis-server --requirepass ${REDIS_PASSWORD}
+        command: redis-server --requirepass ${REDIS_PASSWORD} --overcommit-memory=1
         restart: unless-stopped
         networks:
             - api
