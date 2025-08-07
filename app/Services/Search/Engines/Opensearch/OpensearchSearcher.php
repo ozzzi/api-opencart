@@ -155,6 +155,22 @@ final class OpensearchSearcher implements Searcher
                 ],
             ],
             [
+                'match_phrase' => [
+                    'name_ru' => [
+                        'query' => $query,
+                        'boost' => 7,
+                    ],
+                ],
+            ],
+            [
+                'match_phrase' => [
+                    'name_ua' => [
+                        'query' => $query,
+                        'boost' => 7,
+                    ],
+                ],
+            ],
+            [
                 'multi_match' => [
                     'query' => $query,
                     'fields' => ['name_ru', 'name_ua'],
