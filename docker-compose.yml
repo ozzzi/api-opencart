@@ -72,9 +72,6 @@ services:
             if [ ! -d '/usr/share/opensearch/plugins/opensearch-knn' ]; then
                 /usr/share/opensearch/bin/opensearch-plugin install opensearch-knn --batch
             fi &&
-            if [ ! -d '/usr/share/opensearch/plugins/analysis-phonetic' ]; then
-                /usr/share/opensearch/bin/opensearch-plugin install analysis-phonetic --batch
-            fi &&
                 /usr/share/opensearch/opensearch-docker-entrypoint.sh opensearch
             "
         ulimits:

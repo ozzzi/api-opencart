@@ -151,11 +151,6 @@ final readonly class OpensearchIndexer implements Indexer, StopWord
     private function getFilters(): array
     {
         return [
-            'phonetic_filter' => [
-                'type' => 'phonetic',
-                'encoder' => 'double_metaphone',
-                'replace' => false
-            ],
             'russian_morphology' => [
                 'type' => 'hunspell',
                 'locale' => 'ru_RU',
@@ -204,14 +199,6 @@ final readonly class OpensearchIndexer implements Indexer, StopWord
                     'lowercase',
                     'ukrainian_stop',
                     'ukrainian_morphology',
-                ]
-            ],
-            'phonetic_analyzer' => [
-                'type' => 'custom',
-                'tokenizer' => 'standard',
-                'filter' => [
-                    'lowercase',
-                    'phonetic_filter'
                 ]
             ],
             'exact_analyzer' => [

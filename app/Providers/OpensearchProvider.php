@@ -43,11 +43,6 @@ final class OpensearchProvider extends ServiceProvider
                             'type' => 'text',
                             'analyzer' => 'russian_analyzer',
                             'fields' => [
-                                'phonetic' => [
-                                    'type' => 'text',
-                                    'analyzer' => 'phonetic_analyzer',
-                                    'boost' => 3.0,
-                                ],
                                 'edge_ngram' => [
                                     'type' => 'text',
                                     'analyzer' => 'edge_ngram_analyzer'
@@ -65,11 +60,6 @@ final class OpensearchProvider extends ServiceProvider
                             'type' => 'text',
                             'analyzer' => 'ukrainian_analyzer',
                             'fields' => [
-                                'phonetic' => [
-                                    'type' => 'text',
-                                    'analyzer' => 'phonetic_analyzer',
-                                    'boost' => 3.0,
-                                ],
                                 'edge_ngram' => [
                                     'type' => 'text',
                                     'analyzer' => 'edge_ngram_analyzer'
