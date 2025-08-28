@@ -6,10 +6,10 @@ namespace App\Enums;
 
 use function mb_strtolower;
 
-enum Language: int
+enum Language: string
 {
-    case RU = 1;
-    case UA = 3;
+    case RU = 'ru-ru';
+    case UA = 'uk-ua';
 
     public function toLowerCase(): string
     {

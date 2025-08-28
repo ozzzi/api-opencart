@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands\Search;
 
 use App\Enums\Language;
+use App\Models\Language as LanguageModel;
 use App\Models\Product;
 use App\Services\Search\SearchManager;
 use Illuminate\Console\Command;
@@ -21,6 +22,7 @@ final class Reindex extends Command
 
     public function handle(SearchManager $searchManager): void
     {
+        $languages = (new LanguageModel())->initLanguages();
         $indexer = $searchManager->getIndexer();
 
         // @phpstan-ignore-next-line
@@ -33,17 +35,17 @@ final class Reindex extends Command
         Product::query()
             ->active()
             ->with(['descriptions', 'category', 'manufacturer', 'reviews'])
-            ->chunk(self::BATCH_SIZE, function ($products) use ($bar, $indexer) {
+            ->chunk(self::BATCH_SIZE, function ($products) use ($bar, $indexer, $languages) {
                 $data = [];
 
                 foreach ($products as $product) {
                     $description = $product->descriptions->keyBy('language_id')->toArray();
 
-                    $nameRu = $description[Language::RU->value]['name'] ?? '';
-                    $nameUa = $description[Language::UA->value]['name'] ?? '';
+                    $nameRu = $description[$languages['ru']]['name'] ?? '';
+                    $nameUa = $description[$languages['ua']]['name'] ?? '';
 
-                    $descriptionRu = $description[Language::RU->value]['description'] ?? '';
-                    $descriptionUa = $description[Language::UA->value]['description'] ?? '';
+                    $descriptionRu = $description[$languages['ru']]['description'] ?? '';
+                    $descriptionUa = $description[$languages['ua']]['description'] ?? '';
 
                     $data[] = [
                         'product_id' => (int) $product->product_id,
