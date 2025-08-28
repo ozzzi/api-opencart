@@ -183,7 +183,7 @@ final readonly class OpensearchIndexer implements Indexer, StopWord
         return [
             'russian_analyzer' => [
                 'type' => 'custom',
-                'char_filter' => ['keyboard_layout_filter'],
+                'char_filter' => ['html_strip', 'keyboard_layout_filter'],
                 'tokenizer' => 'standard',
                 'filter' => [
                     'lowercase',
@@ -193,7 +193,7 @@ final readonly class OpensearchIndexer implements Indexer, StopWord
             ],
             'ukrainian_analyzer' => [
                 'type' => 'custom',
-                'char_filter' => ['keyboard_layout_filter'],
+                'char_filter' => ['html_strip', 'keyboard_layout_filter'],
                 'tokenizer' => 'standard',
                 'filter' => [
                     'lowercase',
