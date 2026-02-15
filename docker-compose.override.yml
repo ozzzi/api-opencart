@@ -45,8 +45,12 @@ services:
 
     redis:
         image: arm64v8/redis
-        profiles:
-          - with-redis
+        platform: linux/arm64
+        command: redis-server --requirepass 1234567
+        ports:
+          - "6379:6379"
+        networks:
+          - api
 
     opensearch:
         image: opensearchproject/opensearch:3
