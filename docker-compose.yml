@@ -26,6 +26,8 @@ services:
             context: .
             dockerfile: docker/embedder/Dockerfile
         container_name: vector-api-opencart
+        profiles:
+            - production
         environment:
             API_TOKEN: ${API_TOKEN}
             SEARCH_EMBEDDING_MODEL: ${SEARCH_EMBEDDING_MODEL}

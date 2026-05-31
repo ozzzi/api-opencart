@@ -11,6 +11,8 @@ services:
           - api
 
     vector-api:
+        profiles:
+          - local
         ports:
             - "8088:8000"
         networks:
@@ -69,23 +71,6 @@ services:
 
     hunspell-setup:
         image: alpine:latest
-
-    opensearch-dashboards:
-        image: opensearchproject/opensearch-dashboards:3
-        platform: linux/arm64
-        container_name: opensearch-dashboards
-        ports:
-          - 5601:5601
-        expose:
-          - '5601'
-        environment:
-          OPENSEARCH_HOSTS: https://opensearch-api-opencart:9200
-          OPENSEARCH_USERNAME: ${SEARCH_USER}
-          OPENSEARCH_PASSWORD: ${SEARCH_API_KEY}
-        networks:
-          - api
-        depends_on:
-          - opensearch
 
     adminer:
         image: arm64v8/adminer
