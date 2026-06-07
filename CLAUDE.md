@@ -99,6 +99,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Use TitleCase for Enum keys: `FavoritePerson`, `BestLake`, `Monthly`.
 - Prefer PHPDoc blocks over inline comments. Only add inline comments for exceptionally complex logic.
 - Use array shape type definitions in PHPDoc blocks.
+- Always import classes with `use` statements at the top of the file. Never use inline fully-qualified class names (e.g., use `Carbon` after `use Carbon\Carbon;`, not `\Carbon\Carbon::now()` inline).
 
 === deployments rules ===
 
