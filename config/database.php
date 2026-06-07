@@ -33,6 +33,25 @@ return [
 
     'connections' => [
 
+        'opencart' => [
+            'driver' => 'mysql',
+            'host' => env('OC_DB_HOST', '127.0.0.1'),
+            'port' => env('OC_DB_PORT', '3306'),
+            'database' => env('OC_DB_DATABASE', 'opencart'),
+            'username' => env('OC_DB_USERNAME', 'root'),
+            'password' => env('OC_DB_PASSWORD', ''),
+            'unix_socket' => env('OC_DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => env('OC_DB_PREFIX', 'oc_'),
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
+        ],
+
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
@@ -130,6 +149,7 @@ return [
     'migrations' => [
         'table' => 'migrations',
         'update_date_on_publish' => true,
+        'connection' => 'bot',
     ],
 
     /*
