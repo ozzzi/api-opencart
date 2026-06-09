@@ -1,0 +1,75 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Model Pricing Table
+    |--------------------------------------------------------------------------
+    |
+    | Costs in USD per 1 000 tokens. Embedding models have no output cost.
+    | These are defaults; bot_settings can supply per-model overrides at runtime.
+    |
+    */
+
+    'model_prices' => [
+        // Chat models
+        'gpt-4o'              => ['input' => 0.0025,   'output' => 0.0100],
+        'gpt-4o-mini'         => ['input' => 0.00015,  'output' => 0.0006],
+        'gpt-4-turbo'         => ['input' => 0.0100,   'output' => 0.0300],
+        'gpt-3.5-turbo'       => ['input' => 0.0005,   'output' => 0.0015],
+        // Embedding models (output always 0)
+        'text-embedding-3-small' => ['input' => 0.00002, 'output' => 0.0],
+        'text-embedding-3-large' => ['input' => 0.00013, 'output' => 0.0],
+        'text-embedding-ada-002' => ['input' => 0.00010, 'output' => 0.0],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | RAG Retrieval
+    |--------------------------------------------------------------------------
+    */
+
+    'retrieval' => [
+        'kb_top_k'       => 5,
+        'product_top_k'  => 4,
+        'min_score'      => 0.3,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | OpenSearch Index Names
+    |--------------------------------------------------------------------------
+    */
+
+    'opensearch' => [
+        'kb_index'       => 'chat_kb',
+        'products_index' => 'chat_products',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Conversation Context Window
+    |--------------------------------------------------------------------------
+    */
+
+    'context' => [
+        'window_size'       => 10,
+        'summary_threshold' => 20,
+        'max_tokens'        => 4096,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Circuit Breaker
+    |--------------------------------------------------------------------------
+    */
+
+    'circuit_breaker' => [
+        'failure_threshold'      => 5,
+        'recovery_timeout_sec'   => 60,
+    ],
+
+];
