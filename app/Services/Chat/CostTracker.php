@@ -6,13 +6,14 @@ namespace App\Services\Chat;
 
 use App\Models\Bot\DailyUsageStat;
 use App\Models\Bot\LlmApiCall;
+use App\Services\Chat\Contracts\CostTrackerInterface;
 use App\Services\Chat\DTO\LlmResponse;
 use App\Settings\BotRateLimitSettings;
 use DateTimeInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Redis;
 
-final class CostTracker
+final class CostTracker implements CostTrackerInterface
 {
     private const string REDIS_KEY_PREFIX = 'chat:daily_cost:';
 
