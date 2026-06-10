@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Models\Bot;
 
 use Carbon\Carbon;
+use Database\Factories\ChatSessionFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -23,6 +25,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  */
 final class ChatSession extends Model
 {
+    /** @use HasFactory<ChatSessionFactory> */
+    use HasFactory;
+
     use HasUuids;
 
     protected $table = 'chat_sessions';
@@ -52,6 +57,11 @@ final class ChatSession extends Model
     public function feedbacks(): HasMany
     {
         return $this->hasMany(MessageFeedback::class, 'session_id');
+    }
+
+    protected static function newFactory(): ChatSessionFactory
+    {
+        return ChatSessionFactory::new();
     }
 
     protected function casts(): array
