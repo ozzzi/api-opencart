@@ -18,7 +18,7 @@ use Illuminate\Redis\Connections\Connection;
  * The Redis connection is injected so that BotServiceProvider can bind
  * a specific connection (e.g. 'default') and tests can provide a mock.
  */
-final class CircuitBreaker
+final class CircuitBreaker implements CircuitBreakerInterface
 {
     private const string STATE_CLOSED = 'closed';
 
