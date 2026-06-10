@@ -22,6 +22,8 @@ final class BotChatSettings extends Settings
 
     public string $degradedModeMessage;
 
+    public string $summarizationPrompt;
+
     public static function group(): string
     {
         return 'bot_chat';
