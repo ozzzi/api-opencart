@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models\Bot;
 
 use Carbon\Carbon;
+use Database\Factories\LeadFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -23,6 +25,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class Lead extends Model
 {
+    /** @use HasFactory<LeadFactory> */
+    use HasFactory;
+
     protected $table = 'leads';
 
     protected $fillable = [
@@ -40,6 +45,11 @@ final class Lead extends Model
     public function session(): BelongsTo
     {
         return $this->belongsTo(ChatSession::class, 'session_id');
+    }
+
+    protected static function newFactory(): LeadFactory
+    {
+        return LeadFactory::new();
     }
 
     protected function casts(): array

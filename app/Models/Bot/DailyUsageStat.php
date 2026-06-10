@@ -34,7 +34,6 @@ final class DailyUsageStat extends Model
     protected function casts(): array
     {
         return [
-            'date' => 'date',
             'total_cost_usd' => 'decimal:4',
         ];
     }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models\Bot;
 
 use Carbon\Carbon;
+use Database\Factories\LlmApiCallFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,6 +27,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 final class LlmApiCall extends Model
 {
+    /** @use HasFactory<LlmApiCallFactory> */
+    use HasFactory;
+
     public const null UPDATED_AT = null;
 
     protected $table = 'llm_api_calls';
@@ -53,6 +58,11 @@ final class LlmApiCall extends Model
     public function message(): BelongsTo
     {
         return $this->belongsTo(ChatMessage::class, 'message_id');
+    }
+
+    protected static function newFactory(): LlmApiCallFactory
+    {
+        return LlmApiCallFactory::new();
     }
 
     protected function casts(): array
