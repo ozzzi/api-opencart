@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Chat;
 
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
+use App\Services\Chat\Contracts\RetrievalServiceInterface;
 use App\Services\Chat\DTO\RetrievedFragment;
 use App\Services\Chat\Search\HybridSearcher;
 
@@ -15,7 +16,7 @@ use App\Services\Chat\Search\HybridSearcher;
  * the orchestrator/tool layer is then responsible for telling the model to
  * acknowledge the gap and suggest a lead instead of hallucinating (FR-3.5).
  */
-final class RetrievalService
+final class RetrievalService implements RetrievalServiceInterface
 {
     public function __construct(
         private readonly EmbeddingClientInterface $embeddingClient,
