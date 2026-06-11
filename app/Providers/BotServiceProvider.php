@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\Bot\KnowledgeBaseArticle;
+use App\Services\Chat\Catalog\OpenCartCatalog;
 use App\Observers\KnowledgeBaseArticleObserver;
 use App\Services\Chat\Contracts\AlertNotifierInterface;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
@@ -59,6 +60,7 @@ final class BotServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(OpenCartCatalog::class);
         $this->app->singleton(OpenSearchIndexer::class);
         $this->app->singleton(HybridSearcher::class);
         $this->app->singleton(RetrievalService::class);
