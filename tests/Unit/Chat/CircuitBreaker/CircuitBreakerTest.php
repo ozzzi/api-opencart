@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Unit\Chat\CircuitBreaker;
+namespace Tests\Unit\Chat\CircuitBreaker;
 
 use App\Services\Chat\CircuitBreaker\CircuitBreaker;
 use Illuminate\Redis\Connections\Connection;

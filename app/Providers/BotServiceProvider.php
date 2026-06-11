@@ -18,6 +18,7 @@ use App\Services\Chat\Notifications\EmailNotificationChannel;
 use App\Services\Chat\Notifications\TelegramNotificationChannel;
 use App\Services\Chat\Cost\CostCalculator;
 use App\Services\Chat\Contracts\CostTrackerInterface;
+use App\Services\Chat\RateLimiter;
 use App\Services\Chat\Llm\LocalHttpEmbeddingClient;
 use App\Services\Chat\Llm\OpenAiEmbeddingClient;
 use App\Services\Chat\RetrievalService;
@@ -25,6 +26,8 @@ use App\Services\Chat\Search\HybridSearcher;
 use App\Services\Chat\Search\OpenSearchClientFactory;
 use App\Services\Chat\Search\OpenSearchIndexer;
 use App\Settings\BotLlmSettings;
+use App\Settings\BotRateLimitSettings;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\ServiceProvider;
 use OpenSearch\Client;
 
@@ -76,6 +79,13 @@ final class BotServiceProvider extends ServiceProvider
                 $app->make(EmailNotificationChannel::class),
                 $app->make(TelegramNotificationChannel::class),
             ]);
+        });
+
+        $this->app->singleton(RateLimiter::class, function ($app) {
+            return new RateLimiter(
+                redis: Redis::connection(),
+                settings: $app->make(BotRateLimitSettings::class),
+            );
         });
 
         // Phase 1: LlmClientInterface, FallbackLlmClient, CircuitBreaker

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Unit\Chat\Notifications;
+namespace Tests\Unit\Chat\Notifications;
 
 use App\Models\Bot\Lead;
 use App\Services\Chat\Contracts\NotificationChannelInterface;

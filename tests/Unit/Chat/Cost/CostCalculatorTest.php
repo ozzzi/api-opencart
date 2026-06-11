@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Unit\Chat\Cost;
+namespace Tests\Unit\Chat\Cost;
 
 use App\Services\Chat\Cost\CostCalculator;
 use Tests\TestCase;

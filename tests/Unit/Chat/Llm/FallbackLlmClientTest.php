@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Unit\Chat\Llm;
+namespace Tests\Unit\Chat\Llm;
 
 use App\Exceptions\Chat\CircuitBreakerOpenException;
 use App\Exceptions\Chat\LlmUnavailableException;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Unit\Chat;
+namespace Tests\Unit\Chat;
 
 use App\Models\Bot\ChatSession;
 use App\Models\Bot\DailyUsageStat;

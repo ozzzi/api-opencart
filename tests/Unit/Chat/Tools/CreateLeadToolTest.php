@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature\Unit\Chat\Tools;
+namespace Tests\Unit\Chat\Tools;
 
 use App\Models\Bot\ChatSession;
 use App\Models\Bot\Lead;
