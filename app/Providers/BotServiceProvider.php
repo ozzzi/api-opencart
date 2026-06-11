@@ -13,7 +13,9 @@ use App\Services\Chat\Cost\CostCalculator;
 use App\Services\Chat\Contracts\CostTrackerInterface;
 use App\Services\Chat\Llm\LocalHttpEmbeddingClient;
 use App\Services\Chat\Llm\OpenAiEmbeddingClient;
+use App\Services\Chat\Search\HybridSearcher;
 use App\Services\Chat\Search\OpenSearchClientFactory;
+use App\Services\Chat\Search\OpenSearchIndexer;
 use App\Settings\BotLlmSettings;
 use Illuminate\Support\ServiceProvider;
 use OpenSearch\Client;
@@ -54,8 +56,10 @@ final class BotServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(OpenSearchIndexer::class);
+        $this->app->singleton(HybridSearcher::class);
+
         // Phase 1: LlmClientInterface, FallbackLlmClient, CircuitBreaker
-        // Phase 3: OpenSearchIndexer, HybridSearcher
         // Phase 4: ToolRegistry and individual tools
     }
 
