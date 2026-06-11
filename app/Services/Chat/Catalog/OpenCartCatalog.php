@@ -12,6 +12,7 @@ use App\Models\OpenCart\OcProductDescription;
 use App\Models\OpenCart\OcProductSpecial;
 use App\Models\OpenCart\OcProductToCategory;
 use App\Models\OpenCart\OcUrlAlias;
+use App\Services\Chat\Contracts\OpenCartCatalogInterface;
 
 /**
  * Read-only facade over the OpenCart 2.3 database.
@@ -23,7 +24,7 @@ use App\Models\OpenCart\OcUrlAlias;
  *   - IndexProductJob (bulk indexing for all configured languages)
  *   - GetProductDetailsTool / CompareProductsTool (live data per language)
  */
-final class OpenCartCatalog
+final class OpenCartCatalog implements OpenCartCatalogInterface
 {
     /**
      * Returns one index document per configured language.
