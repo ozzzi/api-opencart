@@ -10,7 +10,7 @@ use DateTimeInterface;
 interface CostTrackerInterface
 {
     public function log(
-        string $sessionId,
+        ?string $sessionId,
         ?int $messageId,
         LlmResponse $response,
         string $model,

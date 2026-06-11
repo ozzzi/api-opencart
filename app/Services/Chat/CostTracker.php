@@ -29,7 +29,7 @@ final class CostTracker implements CostTrackerInterface
      * Persists a successful LLM / embedding call and bumps the daily cost counter.
      */
     public function log(
-        string $sessionId,
+        ?string $sessionId,
         ?int $messageId,
         LlmResponse $response,
         string $model,

@@ -51,6 +51,7 @@ return [
         'model' => env('SEARCH_EMBEDDING_MODEL', ''),
         'model_id' => env('OPENSEARCH_MODEL_ID', ''),
         'embedder_url' => env('EMBEDDED_URL', ''),
+        'embedder_token' => env('API_TOKEN', ''),
         'debug' => env('SEARCH_DEBUG', false),
         'distance_threshold' => env('SEARCH_DISTANCE_THRESHOLD', 0.2),
     ],
