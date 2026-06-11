@@ -8,7 +8,9 @@ use App\Services\Chat\Contracts\AlertNotifierInterface;
 use App\Services\Chat\Notifications\AlertNotifier;
 use App\Services\Chat\Notifications\EmailNotificationChannel;
 use App\Services\Chat\Notifications\TelegramNotificationChannel;
+use App\Services\Chat\Search\OpenSearchClientFactory;
 use Illuminate\Support\ServiceProvider;
+use OpenSearch\Client;
 
 final class BotServiceProvider extends ServiceProvider
 {
@@ -21,8 +23,10 @@ final class BotServiceProvider extends ServiceProvider
             ]);
         });
 
+        $this->app->singleton(Client::class, fn () => OpenSearchClientFactory::make());
+
         // Phase 1: LlmClientInterface, FallbackLlmClient, CircuitBreaker
-        // Phase 3: EmbeddingClientInterface, OpenSearch\Client, OpenSearchIndexer, HybridSearcher
+        // Phase 3: EmbeddingClientInterface, OpenSearchIndexer, HybridSearcher
         // Phase 4: ToolRegistry and individual tools
     }
 
