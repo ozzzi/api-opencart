@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Models\Bot\KnowledgeBaseArticle;
+use App\Observers\KnowledgeBaseArticleObserver;
 use App\Services\Chat\Contracts\AlertNotifierInterface;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
 use App\Services\Chat\Notifications\AlertNotifier;
@@ -67,6 +69,6 @@ final class BotServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Phase 3: KnowledgeBaseArticleObserver
+        KnowledgeBaseArticle::observe(KnowledgeBaseArticleObserver::class);
     }
 }
