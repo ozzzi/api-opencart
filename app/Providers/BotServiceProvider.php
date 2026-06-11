@@ -9,6 +9,10 @@ use App\Services\Chat\Catalog\OpenCartCatalog;
 use App\Observers\KnowledgeBaseArticleObserver;
 use App\Services\Chat\Contracts\AlertNotifierInterface;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
+use App\Services\Chat\Contracts\LeadNotifierInterface;
+use App\Services\Chat\Contracts\LeadServiceInterface;
+use App\Services\Chat\LeadService;
+use App\Services\Chat\Notifications\LeadNotifier;
 use App\Services\Chat\Notifications\AlertNotifier;
 use App\Services\Chat\Notifications\EmailNotificationChannel;
 use App\Services\Chat\Notifications\TelegramNotificationChannel;
@@ -64,6 +68,15 @@ final class BotServiceProvider extends ServiceProvider
         $this->app->singleton(OpenSearchIndexer::class);
         $this->app->singleton(HybridSearcher::class);
         $this->app->singleton(RetrievalService::class);
+
+        $this->app->bind(LeadServiceInterface::class, LeadService::class);
+
+        $this->app->bind(LeadNotifierInterface::class, function ($app) {
+            return new LeadNotifier([
+                $app->make(EmailNotificationChannel::class),
+                $app->make(TelegramNotificationChannel::class),
+            ]);
+        });
 
         // Phase 1: LlmClientInterface, FallbackLlmClient, CircuitBreaker
         // Phase 4: ToolRegistry and individual tools
