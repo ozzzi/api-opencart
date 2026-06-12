@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+@theme {
+    --color-brand-400: #38bdf8;
+    --color-brand-500: #0ea5e9;
+    --color-brand-600: #0284c7;
+    --color-brand-700: #0369a1;
+
+    --font-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─── Layout ─────────────────────────────────────────── */
+
+body {
+    background-color: #020617;
+}
+
+.gradient-bg {
+    background: radial-gradient(ellipse at top, #1e3a5f 0%, #0f172a 50%, #020617 100%);
+}
+
+/* ─── Sidebar ─────────────────────────────────────────── */
+
+.sidebar-bg {
+    background: rgba(15, 23, 42, 0.95);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.nav-link {
+    transition: all 0.15s ease;
+    border-left: 3px solid transparent;
+}
+
+.nav-link:hover {
+    background: rgba(14, 165, 233, 0.08);
+    border-left-color: rgba(14, 165, 233, 0.4);
+}
+
+.nav-link.active {
+    background: rgba(14, 165, 233, 0.12);
+    border-left-color: #0ea5e9;
+    color: #38bdf8;
+}
+
+/* ─── Top bar ─────────────────────────────────────────── */
+
+.topbar-bg {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Glass card (login & modals) ─────────────────────── */
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ─── Form inputs ─────────────────────────────────────── */
+
+.input-field {
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    transition: all 0.2s ease;
+}
+
+.input-field:focus {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(14, 165, 233, 0.6);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    outline: none;
+}
+
+/* ─── Primary button ──────────────────────────────────── */
+
+.btn-primary {
+    background: linear-gradient(135deg, #0ea5e9, #0369a1);
+    transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(14, 165, 233, 0.4);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* ─── Status badges ───────────────────────────────────── */
+
+.badge {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+}
+
+.badge-new      { @apply bg-sky-500/15 text-sky-300; }
+.badge-contacted { @apply bg-amber-500/15 text-amber-300; }
+.badge-closed   { @apply bg-emerald-500/15 text-emerald-300; }
+.badge-spam     { @apply bg-red-500/15 text-red-300; }
+
+/* ─── Table ───────────────────────────────────────────── */
+
+.data-table {
+    @apply w-full text-sm text-left;
+}
+
+.data-table th {
+    @apply px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 border-b border-white/[0.06];
+}
+
+.data-table td {
+    @apply px-4 py-3 text-slate-300 border-b border-white/[0.04];
+}
+
+.data-table tr:hover td {
+    @apply bg-white/[0.02];
+}
+
+/* ─── Card ────────────────────────────────────────────── */
+
+.admin-card {
+    @apply rounded-2xl border border-white/[0.07] bg-slate-900/60;
+}
+
+/* ─── Stat tile ───────────────────────────────────────── */
+
+.stat-tile {
+    @apply rounded-2xl border border-white/[0.07] bg-slate-900/60 p-5;
+}
+
+/* ─── Pulsing dots (login animation) ─────────────────── */
+
+.dot {
+    animation: dot-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* ─── Alpine cloak ────────────────────────────────────── */
+
+[x-cloak] { display: none !important; }
