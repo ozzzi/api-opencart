@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Chat;
 
+use App\Services\Chat\Contracts\RateLimiterInterface;
 use App\Services\Chat\DTO\RateLimitResult;
 use App\Settings\BotRateLimitSettings;
 use Illuminate\Redis\Connections\Connection;
@@ -22,7 +23,7 @@ use Illuminate\Redis\Connections\Connection;
  *
  * Returns a RateLimitResult without throwing; callers decide what to do.
  */
-final class RateLimiter
+final class RateLimiter implements RateLimiterInterface
 {
     /** Keys expire after two minutes so the bucket is auto-cleaned up. */
     private const int KEY_TTL_SECONDS = 120;

@@ -7,6 +7,7 @@ namespace App\Services\Chat\Tools;
 use App\Exceptions\Chat\ToolArgumentValidationException;
 use App\Exceptions\Chat\ToolNotFoundException;
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\ToolRegistryInterface;
 use App\Services\Chat\Tools\Contracts\ToolInterface;
 
 /**
@@ -17,7 +18,7 @@ use App\Services\Chat\Tools\Contracts\ToolInterface;
  *  - Validate tool arguments against the tool's JSON Schema before dispatch.
  *  - Execute the named tool and return its JSON result.
  */
-final class ToolRegistry
+final class ToolRegistry implements ToolRegistryInterface
 {
     /** @var array<string, ToolInterface> */
     private readonly array $tools;

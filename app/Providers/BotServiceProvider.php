@@ -18,6 +18,7 @@ use App\Services\Chat\Notifications\EmailNotificationChannel;
 use App\Services\Chat\Notifications\TelegramNotificationChannel;
 use App\Services\Chat\Cost\CostCalculator;
 use App\Services\Chat\Contracts\CostTrackerInterface;
+use App\Services\Chat\LlmOrchestrator;
 use App\Services\Chat\RateLimiter;
 use App\Services\Chat\Llm\LocalHttpEmbeddingClient;
 use App\Services\Chat\Llm\OpenAiEmbeddingClient;
@@ -87,6 +88,8 @@ final class BotServiceProvider extends ServiceProvider
                 settings: $app->make(BotRateLimitSettings::class),
             );
         });
+
+        $this->app->singleton(LlmOrchestrator::class);
 
         // Phase 1: LlmClientInterface, FallbackLlmClient, CircuitBreaker
         // Phase 4: ToolRegistry and individual tools

@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Services\Chat;
 
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\ShopAssistantInterface;
 use App\Settings\BotChatSettings;
 use Illuminate\Support\Carbon;
 
-final class ShopAssistant
+final class ShopAssistant implements ShopAssistantInterface
 {
     public function __construct(
         private readonly BotChatSettings $settings,

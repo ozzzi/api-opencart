@@ -7,11 +7,12 @@ namespace App\Services\Chat;
 use App\Exceptions\Chat\SessionNotFoundException;
 use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\ConversationServiceInterface;
 use App\Services\Chat\DTO\LlmChatMessage;
 use App\Settings\BotChatSettings;
 use Carbon\Carbon;
 
-final class ConversationService
+final class ConversationService implements ConversationServiceInterface
 {
     public function __construct(
         private readonly BotChatSettings $settings,
