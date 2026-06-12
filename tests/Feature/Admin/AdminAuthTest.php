@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Models\Bot\AdminUser;
+use App\Services\Chat\Contracts\CostTrackerInterface;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 final class AdminAuthTest extends TestCase
@@ -97,6 +99,10 @@ final class AdminAuthTest extends TestCase
     public function test_manager_role_can_access_dashboard(): void
     {
         $manager = AdminUser::factory()->create(['role' => 'manager']);
+
+        $this->mock(CostTrackerInterface::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('getDailyCost')->andReturn(0.0);
+        });
 
         $response = $this->actingAs($manager, 'admin')->get(route('admin.dashboard'));
 
