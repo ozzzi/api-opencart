@@ -25,6 +25,11 @@ final class BudgetThresholdAlertJob implements ShouldQueue
     /** 24 hours in seconds. */
     private const int ALERT_FLAG_TTL = 86400;
 
+    public function __construct()
+    {
+        $this->onQueue('notifications');
+    }
+
     public function handle(
         CostTrackerInterface $costTracker,
         BotRateLimitSettings $rateLimitSettings,

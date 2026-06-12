@@ -8,7 +8,13 @@ use App\Models\Bot\ChatSession;
 use App\Settings\BotPrivacySettings;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\Backoff;
+use Illuminate\Queue\Attributes\Timeout;
+use Illuminate\Queue\Attributes\Tries;
 
+#[Tries(3)]
+#[Backoff([30, 60, 120])]
+#[Timeout(300)]
 final class PurgeExpiredChatsJob implements ShouldQueue
 {
     use Queueable;

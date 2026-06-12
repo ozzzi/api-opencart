@@ -24,6 +24,7 @@ final class DailyUsageStatsAggregatorJob implements ShouldQueue
     public function __construct(
         private readonly ?Carbon $date = null,
     ) {
+        $this->onQueue('maintenance');
     }
 
     public function handle(): void

@@ -15,7 +15,12 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    // Named queues used by the chat bot:
+    //   chat          — conversation summarisation
+    //   indexing      — catalog / KB indexing
+    //   notifications — lead emails, Telegram, budget alerts
+    //   maintenance   — purge, stats aggregation
+    'default' => env('QUEUE_CONNECTION', 'redis'),
 
     /*
     |--------------------------------------------------------------------------
@@ -69,7 +74,8 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            // Must exceed the longest job #[Timeout] (PurgeExpiredChatsJob = 300s)
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 360),
             'block_for' => null,
             'after_commit' => false,
         ],
