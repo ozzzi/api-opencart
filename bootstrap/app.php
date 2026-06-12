@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\ChatSessionToken;
 use App\Http\Middleware\RestrictIpToHost;
 use App\Http\Middleware\TokenAuth;
 use Illuminate\Foundation\Application;
@@ -19,6 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('api', [
             TokenAuth::class,
             RestrictIpToHost::class,
+        ]);
+
+        $middleware->alias([
+            'chat.session' => ChatSessionToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
