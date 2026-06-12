@@ -12,11 +12,27 @@ use Illuminate\View\View;
 
 final class KbController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $articles = KnowledgeBaseArticle::query()->latest()->paginate(20);
+        $articles = KnowledgeBaseArticle::query()
+            ->when($request->input('lang'), fn ($q, $v) => $q->where('lang', $v))
+            ->when($request->input('category'), fn ($q, $v) => $q->where('category', $v))
+            ->when($request->input('status') === 'published', fn ($q) => $q->where('is_published', true))
+            ->when($request->input('status') === 'draft', fn ($q) => $q->where('is_published', false))
+            ->when($request->input('search'), fn ($q, $v) => $q->where(function ($q) use ($v) {
+                $q->where('title', 'like', "%{$v}%")->orWhere('content', 'like', "%{$v}%");
+            }))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
 
-        return view('admin.kb.index', compact('articles'));
+        $categories = KnowledgeBaseArticle::query()
+            ->whereNotNull('category')
+            ->distinct()
+            ->orderBy('category')
+            ->pluck('category');
+
+        return view('admin.kb.index', compact('articles', 'categories'));
     }
 
     public function create(): View
