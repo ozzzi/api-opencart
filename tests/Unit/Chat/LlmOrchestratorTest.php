@@ -211,10 +211,11 @@ final class LlmOrchestratorTest extends TestCase
 
         $chunks = iterator_to_array($generator, false);
 
-        $this->assertCount(2, $chunks);
-        $this->assertSame(StreamChunkType::Text, $chunks[0]->type);
-        $this->assertSame('Streaming answer', $chunks[0]->content);
-        $this->assertSame(StreamChunkType::Done, $chunks[1]->type);
+        $this->assertCount(3, $chunks);
+        $this->assertSame(StreamChunkType::Start, $chunks[0]->type);
+        $this->assertSame(StreamChunkType::Text, $chunks[1]->type);
+        $this->assertSame('Streaming answer', $chunks[1]->content);
+        $this->assertSame(StreamChunkType::Done, $chunks[2]->type);
     }
 
     public function test_cost_is_logged_after_successful_response(): void

@@ -56,6 +56,13 @@ final class LlmOrchestrator
         string $userMessage,
         bool $stream = false,
     ): Generator|LlmResponse {
+        // Streaming path is fully lazy — all work happens inside the generator.
+        if ($stream) {
+            return $this->streamProcess($session, $userMessage);
+        }
+
+        // ── Non-streaming path ──────────────────────────────────────────────
+
         // 1. Budget guard
         if (! $this->costTracker->checkBudget()) {
             throw new DailyBudgetExceededException;
@@ -120,12 +127,152 @@ final class LlmOrchestrator
             SummarizeConversationJob::dispatch($session->id);
         }
 
-        // 9. Deliver
-        if ($stream) {
-            return $this->streamResponse($finalResponse);
+        return $finalResponse;
+    }
+
+    // ── Streaming generator ───────────────────────────────────────────────────
+
+    /**
+     * Returns a Generator that performs all work lazily:
+     *   - Checks budget/rate and throws on violation (caught by the SSE controller)
+     *   - Yields Start, ToolRunning, ToolDone, Text, and Done chunks
+     *
+     * @return Generator<int, StreamChunk, null, void>
+     *
+     * @throws DailyBudgetExceededException
+     * @throws RateLimitExceededException
+     */
+    private function streamProcess(ChatSession $session, string $userMessage): Generator
+    {
+        // 1. Budget guard
+        if (! $this->costTracker->checkBudget()) {
+            throw new DailyBudgetExceededException;
         }
 
-        return $finalResponse;
+        // 2. Rate limit guard
+        $rateLimitResult = $this->rateLimiter->check($session->id, $session->ip_address ?? '');
+
+        if (! $rateLimitResult->allowed) {
+            throw new RateLimitExceededException(
+                $rateLimitResult->limitType ?? 'global',
+                $rateLimitResult->retryAfterSeconds,
+            );
+        }
+
+        // 3. Detect language
+        $session->language = $this->shopAssistant->detectLanguage($userMessage);
+
+        // 4. Persist user message
+        $this->conversationService->addMessage($session, 'user', $userMessage);
+
+        // Signal stream start
+        yield new StreamChunk(StreamChunkType::Start);
+
+        // 5+6. Build context window + system prompt
+        $messages = [
+            new LlmChatMessage(
+                role: 'system',
+                content: $this->shopAssistant->buildSystemPrompt($session),
+            ),
+            ...$this->conversationService->buildContextWindow($session),
+        ];
+
+        // 7. Tool-call loop with inline tool event yields
+        $startTime = hrtime(true);
+        $finalResponse = null;
+
+        for ($i = 0; $i < self::MAX_TOOL_ITERATIONS; $i++) {
+            $request = new LlmRequest(
+                messages: $messages,
+                model: $this->llmClient->getModel(),
+                maxTokens: $this->llmSettings->maxContextTokens,
+                tools: $this->toolRegistry->getOpenAiTools(),
+            );
+
+            $response = $this->llmClient->complete($request);
+
+            if ($response->finishReason !== 'tool_calls' || $response->toolCalls === []) {
+                $finalResponse = $response;
+                break;
+            }
+
+            $messages[] = new LlmChatMessage(
+                role: 'assistant',
+                content: null,
+                toolCalls: $response->toolCalls,
+            );
+
+            $this->persistToolCallMessage($session, $response);
+
+            foreach ($response->toolCalls as $toolCall) {
+                yield new StreamChunk(StreamChunkType::ToolRunning, toolName: $toolCall->name);
+
+                $result = $this->toolRegistry->execute(
+                    $toolCall->name,
+                    $toolCall->arguments,
+                    $session,
+                );
+
+                $messages[] = new LlmChatMessage(
+                    role: 'tool',
+                    content: $result,
+                    toolCallId: $toolCall->id,
+                );
+
+                $this->conversationService->addMessage($session, 'tool', $result, [
+                    'tool_name' => $toolCall->name,
+                ]);
+
+                yield new StreamChunk(StreamChunkType::ToolDone, toolName: $toolCall->name);
+            }
+        }
+
+        // Max iterations reached — do a final non-tool call
+        if ($finalResponse === null) {
+            $finalResponse = $this->llmClient->complete(new LlmRequest(
+                messages: $messages,
+                model: $this->llmClient->getModel(),
+                maxTokens: $this->llmSettings->maxContextTokens,
+            ));
+        }
+
+        $latencyMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
+
+        // Persist final assistant message
+        $assistantMessage = $this->conversationService->addMessage(
+            $session,
+            'assistant',
+            $finalResponse->content ?? '',
+            [
+                'model' => $this->llmClient->getModel(),
+                'tokens_used' => $finalResponse->usage->promptTokens + $finalResponse->usage->completionTokens,
+                'latency_ms' => $latencyMs,
+            ],
+        );
+
+        // 8. Log cost
+        $this->costTracker->log(
+            sessionId: $session->id,
+            messageId: $assistantMessage->id,
+            response: $finalResponse,
+            model: $this->llmClient->getModel(),
+            type: 'chat',
+            provider: $this->llmClient->getProvider(),
+            latencyMs: $latencyMs,
+        );
+
+        // 10. Trigger summarization if needed
+        if ($this->conversationService->needsSummarization($session)) {
+            SummarizeConversationJob::dispatch($session->id);
+        }
+
+        // 9. Text delta
+        if ($finalResponse->content !== null && $finalResponse->content !== '') {
+            yield new StreamChunk(StreamChunkType::Text, content: $finalResponse->content);
+        }
+
+        // Done with message_id for the feedback button
+        yield new StreamChunk(StreamChunkType::Done, messageId: $assistantMessage->id);
     }
 
     // ── Tool-call loop ────────────────────────────────────────────────────────
@@ -206,21 +353,4 @@ final class LlmOrchestrator
         ]);
     }
 
-    // ── Streaming ─────────────────────────────────────────────────────────────
-
-    /**
-     * Wraps an already-obtained LlmResponse as a Generator of StreamChunks.
-     * The tool-loop always runs synchronously; streaming is the delivery mechanism
-     * for the final human-visible text to the SSE controller.
-     *
-     * @return Generator<int, StreamChunk, null, void>
-     */
-    private function streamResponse(LlmResponse $response): Generator
-    {
-        if ($response->content !== null && $response->content !== '') {
-            yield new StreamChunk(StreamChunkType::Text, $response->content);
-        }
-
-        yield new StreamChunk(StreamChunkType::Done);
-    }
 }

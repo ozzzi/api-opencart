@@ -10,6 +10,8 @@ final readonly class StreamChunk
         public StreamChunkType $type,
         public ?string $content = null,
         public ?ToolCall $toolCall = null,
+        public ?int $messageId = null,
+        public ?string $toolName = null,
     ) {
     }
 }
