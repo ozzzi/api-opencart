@@ -18,6 +18,7 @@ use App\Services\Chat\Notifications\EmailNotificationChannel;
 use App\Services\Chat\Notifications\TelegramNotificationChannel;
 use App\Services\Chat\Cost\CostCalculator;
 use App\Services\Chat\Contracts\CostTrackerInterface;
+use App\Services\Chat\CostTracker;
 use App\Services\Chat\LlmOrchestrator;
 use App\Services\Chat\RateLimiter;
 use App\Services\Chat\Llm\LocalHttpEmbeddingClient;
@@ -36,6 +37,8 @@ final class BotServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(CostTrackerInterface::class, CostTracker::class);
+
         $this->app->singleton(AlertNotifierInterface::class, function ($app) {
             return new AlertNotifier([
                 $app->make(EmailNotificationChannel::class),
