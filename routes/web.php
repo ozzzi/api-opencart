@@ -26,11 +26,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::resource('conversations', ConversationController::class)
             ->only(['index', 'show']);
 
-        Route::resource('kb', KbController::class);
+        Route::resource('kb', KbController::class)->except(['show']);
 
         Route::resource('leads', AdminLeadController::class)
             ->only(['index', 'update']);
 
         Route::get('settings', [SettingsController::class, 'edit'])->name('settings.edit');
+        Route::put('settings', [SettingsController::class, 'update'])->name('settings.update');
     });
 });
