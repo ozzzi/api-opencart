@@ -6,6 +6,7 @@ use App\Exceptions\Chat\DailyBudgetExceededException;
 use App\Exceptions\Chat\LlmUnavailableException;
 use App\Exceptions\Chat\RateLimitExceededException;
 use App\Exceptions\Chat\SessionNotFoundException;
+use App\Http\Middleware\AdminAuth;
 use App\Http\Middleware\ChatSessionToken;
 use App\Http\Middleware\RestrictIpToHost;
 use App\Http\Middleware\TokenAuth;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'chat.session' => ChatSessionToken::class,
+            'admin.auth'   => AdminAuth::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Models\Bot;
 
 use Carbon\Carbon;
+use Database\Factories\AdminUserFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
 /**
@@ -18,6 +20,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  */
 final class AdminUser extends Authenticatable
 {
+    /** @use HasFactory<AdminUserFactory> */
+    use HasFactory;
+
     protected $table = 'admin_users';
 
     protected $fillable = [
@@ -31,6 +36,16 @@ final class AdminUser extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    protected static function newFactory(): AdminUserFactory
+    {
+        return AdminUserFactory::new();
+    }
 
     protected function casts(): array
     {
