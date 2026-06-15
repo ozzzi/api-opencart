@@ -13,7 +13,7 @@ use App\Models\Bot\ChatSession;
 use App\Services\Chat\DTO\StreamChunkType;
 use App\Services\Chat\LlmOrchestrator;
 use App\Settings\BotChatSettings;
-use Illuminate\Http\StreamedResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Http\StreamedEvent;
 use Generator;
 
