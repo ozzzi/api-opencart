@@ -44,9 +44,9 @@ return [
     */
 
     'knn' => [
-        'engine'     => 'nmslib',
+        'engine'     => 'faiss',
         'method'     => 'hnsw',
-        'space_type' => 'cosinesimil',
+        'space_type' => 'innerproduct',
         'parameters' => [
             'm'              => 16,
             'ef_construction' => 128,
