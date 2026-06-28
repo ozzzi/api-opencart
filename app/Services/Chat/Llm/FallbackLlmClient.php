@@ -9,8 +9,9 @@ use App\Services\Chat\Contracts\LlmClientInterface;
 use App\Services\Chat\DTO\LlmRequest;
 use App\Services\Chat\DTO\LlmResponse;
 use Generator;
-use Throwable;
+use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * Chain-of-responsibility: tries each client left-to-right (primary → reserve…).
@@ -42,10 +43,25 @@ final class FallbackLlmClient implements LlmClientInterface
     {
         $causes = [];
 
-        foreach ($this->clients as $client) {
+        foreach ($this->clients as $index => $client) {
             try {
-                return $client->complete($request);
+                $response = $client->complete($request);
+
+                if ($index > 0) {
+                    Log::channel('chat')->warning('LLM fallback used', [
+                        'fallback_index' => $index,
+                        'model' => $client->getModel(),
+                        'provider' => $client->getProvider(),
+                    ]);
+                }
+
+                return $response;
             } catch (Throwable $e) {
+                Log::channel('chat')->error('LLM client failed', [
+                    'index' => $index,
+                    'model' => $client->getModel(),
+                    'error' => $e->getMessage(),
+                ]);
                 $causes[] = $e;
             }
         }
@@ -57,12 +73,25 @@ final class FallbackLlmClient implements LlmClientInterface
     {
         $causes = [];
 
-        foreach ($this->clients as $client) {
+        foreach ($this->clients as $index => $client) {
             try {
                 yield from $client->stream($request);
 
+                if ($index > 0) {
+                    Log::channel('chat')->warning('LLM stream fallback used', [
+                        'fallback_index' => $index,
+                        'model' => $client->getModel(),
+                        'provider' => $client->getProvider(),
+                    ]);
+                }
+
                 return;
             } catch (Throwable $e) {
+                Log::channel('chat')->error('LLM stream client failed', [
+                    'index' => $index,
+                    'model' => $client->getModel(),
+                    'error' => $e->getMessage(),
+                ]);
                 $causes[] = $e;
             }
         }

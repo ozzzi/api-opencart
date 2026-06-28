@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Chat\CircuitBreaker;
 
 use Illuminate\Redis\Connections\Connection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Redis-backed circuit breaker for LLM model calls.
@@ -65,11 +66,20 @@ final class CircuitBreaker implements CircuitBreakerInterface
      */
     public function recordSuccess(string $model): void
     {
+        $previousState = $this->getState($model);
+
         $this->redis->del(
             $this->keyState($model),
             $this->keyFailures($model),
             $this->keyOpenUntil($model),
         );
+
+        if ($previousState !== self::STATE_CLOSED) {
+            Log::channel('chat')->info('Circuit breaker closed', [
+                'model' => $model,
+                'previous_state' => $previousState,
+            ]);
+        }
     }
 
     /**
@@ -82,9 +92,21 @@ final class CircuitBreaker implements CircuitBreakerInterface
         // Keep the counter alive long enough to cover the recovery window
         $this->redis->expire($this->keyFailures($model), $this->recoveryTimeoutSec * 4);
 
+        Log::channel('chat')->warning('Circuit breaker failure recorded', [
+            'model' => $model,
+            'failures' => $failures,
+            'threshold' => $this->failureThreshold,
+        ]);
+
         if ($failures >= $this->failureThreshold) {
             $this->redis->set($this->keyOpenUntil($model), time() + $this->recoveryTimeoutSec);
             $this->transitionTo($model, self::STATE_OPEN);
+
+            Log::channel('chat')->error('Circuit breaker opened', [
+                'model' => $model,
+                'failures' => $failures,
+                'recovery_timeout_sec' => $this->recoveryTimeoutSec,
+            ]);
         }
     }
 

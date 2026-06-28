@@ -12,6 +12,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
 use Illuminate\Queue\Attributes\Tries;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
 #[Tries(3)]
@@ -52,6 +53,15 @@ final class BudgetThresholdAlertJob implements ShouldQueue
         if (Redis::exists($flagKey)) {
             return;
         }
+
+        $percent = round($dailyCost / $budget * 100, 1);
+
+        Log::channel('chat')->warning('Budget threshold alert triggered', [
+            'daily_cost_usd' => $dailyCost,
+            'budget_usd' => $budget,
+            'percent_used' => $percent,
+            'date' => $today->toDateString(),
+        ]);
 
         $this->sendAlert($dailyCost, $budget, $notifier);
 
