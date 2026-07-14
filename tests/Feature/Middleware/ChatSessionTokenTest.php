@@ -71,6 +71,18 @@ final class ChatSessionTokenTest extends TestCase
         $response->assertOk()->assertJson(['ok' => true]);
     }
 
+    public function test_session_id_with_leading_zero_is_not_truncated(): void
+    {
+        $session = ChatSession::factory()->create([
+            'id' => '00000000-1234-4abc-8def-0123456789ab',
+            'last_activity_at' => now(),
+        ]);
+
+        $response = $this->hitProtectedRoute($session->id);
+
+        $response->assertOk()->assertJson(['ok' => true]);
+    }
+
     private function hitProtectedRoute(string $sessionId = ''): \Illuminate\Testing\TestResponse
     {
         return $this->getJson('/_test/chat-session', ['X-Chat-Session' => $sessionId]);

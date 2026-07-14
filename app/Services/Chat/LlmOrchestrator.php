@@ -56,19 +56,14 @@ final class LlmOrchestrator
         string $userMessage,
         bool $stream = false,
     ): Generator|LlmResponse {
-        // Streaming path is fully lazy — all work happens inside the generator.
         if ($stream) {
             return $this->streamProcess($session, $userMessage);
         }
 
-        // ── Non-streaming path ──────────────────────────────────────────────
-
-        // 1. Budget guard
         if (! $this->costTracker->checkBudget()) {
             throw new DailyBudgetExceededException;
         }
 
-        // 2. Rate limit guard
         $rateLimitResult = $this->rateLimiter->check($session->id, $session->ip_address ?? '');
 
         if (! $rateLimitResult->allowed) {
@@ -78,11 +73,9 @@ final class LlmOrchestrator
             );
         }
 
-        // 3. Detect language and update session if changed (persisted by addMessage below)
         $detectedLang = $this->shopAssistant->detectLanguage($userMessage);
         $session->language = $detectedLang;
 
-        // 4. Persist user message
         $this->conversationService->addMessage($session, 'user', $userMessage);
 
         // 5 + 6. Build context window + prepend system prompt
