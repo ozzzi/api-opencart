@@ -8,9 +8,11 @@ use App\Models\Bot\KnowledgeBaseArticle;
 use App\Services\Chat\Catalog\OpenCartCatalog;
 use App\Observers\KnowledgeBaseArticleObserver;
 use App\Services\Chat\Contracts\AlertNotifierInterface;
+use App\Services\Chat\Contracts\ConversationServiceInterface;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
 use App\Services\Chat\Contracts\LeadNotifierInterface;
 use App\Services\Chat\Contracts\LeadServiceInterface;
+use App\Services\Chat\ConversationService;
 use App\Services\Chat\LeadService;
 use App\Services\Chat\Notifications\LeadNotifier;
 use App\Services\Chat\Notifications\AlertNotifier;
@@ -38,6 +40,8 @@ final class BotServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(CostTrackerInterface::class, CostTracker::class);
+
+        $this->app->singleton(ConversationServiceInterface::class, ConversationService::class);
 
         $this->app->singleton(AlertNotifierInterface::class, function ($app) {
             return new AlertNotifier([
