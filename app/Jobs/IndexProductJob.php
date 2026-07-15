@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Services\Chat\Catalog\OpenCartCatalog;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
+use App\Services\Chat\Contracts\OpenCartCatalogInterface;
 use App\Services\Chat\Search\OpenSearchIndexer;
+use App\Services\Chat\Search\TextChunker;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
@@ -20,6 +21,13 @@ final class IndexProductJob implements ShouldQueue
 {
     use Queueable;
 
+    private const int CHUNK_SIZE = 2000;
+
+    private const int CHUNK_OVERLAP = 50;
+
+    /** Maximum chunks per embed() call to avoid oversized HTTP payloads. */
+    private const int EMBED_BATCH_SIZE = 5;
+
     public function __construct(
         public readonly int $productId,
     ) {
@@ -27,53 +35,66 @@ final class IndexProductJob implements ShouldQueue
     }
 
     public function handle(
-        OpenCartCatalog $catalog,
+        OpenCartCatalogInterface $catalog,
         EmbeddingClientInterface $embeddingClient,
         OpenSearchIndexer $indexer,
+        TextChunker $chunker,
     ): void {
+        $index = (string) config('opensearch.indices.products');
+
         $documents = $catalog->getProductDocuments($this->productId);
 
-        if ($documents === []) {
-            // Product no longer exists — ensure it is absent from the index.
-            $indexer->deleteByQuery(
-                (string) config('opensearch.indices.products'),
-                ['query' => ['term' => ['product_id' => $this->productId]]],
-            );
+        $indexer->deleteByQuery(
+            $index,
+            ['query' => ['term' => ['product_id' => $this->productId]]],
+        );
 
+        if ($documents === []) {
             return;
         }
 
-        $index = (string) config('opensearch.indices.products');
-
-        // Embed all language variants in one batch call.
-        $texts = array_map(
-            fn (array $doc): string => implode(' ', array_filter([
-                $doc['name'],
+        $chunksByDoc = array_map(
+            static fn (array $doc): array => $chunker->chunk(
+                "{$doc['name']} {$doc['category']}",
                 $doc['description'],
-                $doc['attributes'],
-                $doc['category'],
-            ])),
+                self::CHUNK_SIZE,
+                self::CHUNK_OVERLAP,
+            ),
             $documents,
         );
 
-        $vectors = $embeddingClient->embed($texts);
+        $pending = [];
 
         foreach ($documents as $i => $doc) {
-            $docId = "{$doc['product_id']}_{$doc['lang']}";
+            foreach ($chunksByDoc[$i] as $chunk) {
+                $pending[] = ['doc' => $doc, 'chunk' => $chunk];
+            }
+        }
 
-            $indexer->upsert($index, $docId, [
-                'product_id'     => $doc['product_id'],
-                'lang'           => $doc['lang'],
-                'name'           => $doc['name'],
-                'description'    => $doc['description'],
-                'attributes'     => $doc['attributes'],
-                'category'       => $doc['category'],
-                'price'          => $doc['price'],
-                'in_stock'       => $doc['in_stock'],
-                'url'            => $doc['url'],
-                'image'          => $doc['image'],
-                'content_vector' => $vectors[$i],
-            ]);
+        foreach (array_chunk($pending, self::EMBED_BATCH_SIZE, preserve_keys: true) as $batch) {
+            $texts = array_map(static fn (array $item): string => $item['chunk']['text'], $batch);
+            $vectors = $embeddingClient->embed($texts);
+
+            foreach (array_values($batch) as $offset => $item) {
+                $doc = $item['doc'];
+                $chunkIndex = $item['chunk']['index'];
+                $docId = "{$doc['product_id']}_{$doc['lang']}_{$chunkIndex}";
+
+                $indexer->upsert($index, $docId, [
+                    'product_id'     => $doc['product_id'],
+                    'chunk_index'    => $chunkIndex,
+                    'lang'           => $doc['lang'],
+                    'name'           => $doc['name'],
+                    'description'    => $item['chunk']['text'],
+                    'attributes'     => $doc['attributes'],
+                    'category'       => $doc['category'],
+                    'price'          => $doc['price'],
+                    'in_stock'       => $doc['in_stock'],
+                    'url'            => $doc['url'],
+                    'image'          => $doc['image'],
+                    'content_vector' => $vectors[$offset],
+                ]);
+            }
         }
     }
 }

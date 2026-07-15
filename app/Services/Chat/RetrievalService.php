@@ -101,10 +101,10 @@ final class RetrievalService implements RetrievalServiceInterface
             queryText: $query,
             queryVector: $vector,
             filters: $osFilters,
-            topK: $topK,
+            topK: $topK * 3,
         );
 
-        return $this->toFragments($hits, 'products');
+        return $this->toFragments($hits, 'products', $topK);
     }
 
     // -------------------------------------------------------------------------
@@ -125,11 +125,12 @@ final class RetrievalService implements RetrievalServiceInterface
      * @param  list<array{_id:string,_score:float,_source:array<string,mixed>}> $hits
      * @return list<RetrievedFragment>
      */
-    private function toFragments(array $hits, string $source): array
+    private function toFragments(array $hits, string $source, ?int $limit = null): array
     {
         $minScore = (float) config('opensearch.distance_threshold', 0.3);
 
         $fragments = [];
+        $seenProductIds = [];
 
         foreach ($hits as $hit) {
             if ($hit['_score'] < $minScore) {
@@ -137,6 +138,18 @@ final class RetrievalService implements RetrievalServiceInterface
             }
 
             $src = $hit['_source'];
+
+            if ($source === 'products') {
+                $productId = $src['product_id'] ?? null;
+
+                if ($productId !== null) {
+                    if (isset($seenProductIds[$productId])) {
+                        continue;
+                    }
+
+                    $seenProductIds[$productId] = true;
+                }
+            }
 
             $content = match ($source) {
                 'kb'       => mb_trim(($src['title'] ?? '').' '.($src['content'] ?? '')),
@@ -151,6 +164,10 @@ final class RetrievalService implements RetrievalServiceInterface
                 score: $hit['_score'],
                 metadata: $src,
             );
+
+            if ($limit !== null && count($fragments) >= $limit) {
+                break;
+            }
         }
 
         return $fragments;

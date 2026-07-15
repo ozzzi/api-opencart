@@ -8,6 +8,7 @@ use App\Jobs\IndexKbArticleJob;
 use App\Models\Bot\KnowledgeBaseArticle;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
 use App\Services\Chat\Search\OpenSearchIndexer;
+use App\Services\Chat\Search\TextChunker;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
@@ -92,6 +93,6 @@ final class IndexKbArticleJobTest extends TestCase
     private function runJob(int $articleId): void
     {
         $job = new IndexKbArticleJob($articleId);
-        $job->handle($this->embeddingClient, $this->indexer);
+        $job->handle($this->embeddingClient, $this->indexer, new TextChunker);
     }
 }

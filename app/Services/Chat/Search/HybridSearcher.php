@@ -61,10 +61,6 @@ final class HybridSearcher
         return $this->searchWithRrf($index, $queryText, $queryVector, $filters, $topK);
     }
 
-    // -------------------------------------------------------------------------
-    // Pipeline (native hybrid) path
-    // -------------------------------------------------------------------------
-
     /**
      * @param  list<float>                $queryVector
      * @param  list<array<string, mixed>> $filters
@@ -99,10 +95,6 @@ final class HybridSearcher
 
         return $this->extractHits($response);
     }
-
-    // -------------------------------------------------------------------------
-    // App-side RRF fallback
-    // -------------------------------------------------------------------------
 
     /**
      * @param  list<float>                $queryVector
@@ -214,10 +206,6 @@ final class HybridSearcher
 
         return ['knn' => ['content_vector' => $knnClause]];
     }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
 
     /**
      * @param  array<string, mixed>                                              $response

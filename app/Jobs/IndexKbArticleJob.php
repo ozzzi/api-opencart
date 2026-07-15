@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Models\Bot\KnowledgeBaseArticle;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
 use App\Services\Chat\Search\OpenSearchIndexer;
+use App\Services\Chat\Search\TextChunker;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
@@ -39,6 +40,7 @@ final class IndexKbArticleJob implements ShouldQueue
     public function handle(
         EmbeddingClientInterface $embeddingClient,
         OpenSearchIndexer $indexer,
+        TextChunker $chunker,
     ): void {
         $article = KnowledgeBaseArticle::find($this->articleId);
 
@@ -54,7 +56,7 @@ final class IndexKbArticleJob implements ShouldQueue
             'query' => ['term' => ['article_id' => $article->id]],
         ]);
 
-        $chunks = $this->splitIntoChunks($article->title, $article->content);
+        $chunks = $chunker->chunk($article->title, $article->content, self::CHUNK_SIZE, self::CHUNK_OVERLAP);
 
         foreach (array_chunk($chunks, self::EMBED_BATCH_SIZE, preserve_keys: true) as $batch) {
             $texts = array_column($batch, 'text');
@@ -79,41 +81,5 @@ final class IndexKbArticleJob implements ShouldQueue
 
         $article->opensearch_indexed_at = Carbon::now();
         $article->saveQuietly();
-    }
-
-    /**
-     * Split article text into overlapping word-based chunks.
-     *
-     * Each element: ['index' => int, 'text' => string]
-     *
-     * @return list<array{index:int,text:string}>
-     */
-    private function splitIntoChunks(string $title, string $content): array
-    {
-        $words = preg_split('/\s+/u', mb_trim($content), flags: PREG_SPLIT_NO_EMPTY);
-
-        if ($words === false || $words === []) {
-            return [['index' => 0, 'text' => mb_trim($title)]];
-        }
-
-        $step = max(1, self::CHUNK_SIZE - self::CHUNK_OVERLAP);
-        $total = count($words);
-        $chunks = [];
-        $chunkIndex = 0;
-
-        for ($start = 0; $start < $total; $start += $step) {
-            $slice = array_slice($words, $start, self::CHUNK_SIZE);
-            $text = $title.' '.implode(' ', $slice);
-
-            $chunks[] = ['index' => $chunkIndex, 'text' => mb_trim($text)];
-            $chunkIndex++;
-
-            // If the remaining words fit entirely in this chunk, we're done.
-            if ($start + self::CHUNK_SIZE >= $total) {
-                break;
-            }
-        }
-
-        return $chunks;
     }
 }

@@ -13,7 +13,7 @@ namespace App\Services\Chat\Search;
  *
  * Index doc-id conventions (for idempotent upsert):
  *   kb_index       → "{article_id}_{chunk_index}"
- *   products_index → "{product_id}_{lang}"
+ *   products_index → "{product_id}_{lang}_{chunk_index}"
  */
 final class IndexSchemas
 {
@@ -82,6 +82,7 @@ final class IndexSchemas
             'mappings' => [
                 'properties' => [
                     'product_id'     => ['type' => 'integer'],
+                    'chunk_index'    => ['type' => 'integer'],
                     'name'           => self::multiLangTextField(),
                     'description'    => self::multiLangTextField(),
                     'attributes'     => self::multiLangTextField(),
