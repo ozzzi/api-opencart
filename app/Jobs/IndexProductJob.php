@@ -21,7 +21,7 @@ final class IndexProductJob implements ShouldQueue
 {
     use Queueable;
 
-    private const int CHUNK_SIZE = 2000;
+    private const int CHUNK_SIZE = 400;
 
     private const int CHUNK_OVERLAP = 50;
 
