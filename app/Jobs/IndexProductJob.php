@@ -67,6 +67,10 @@ final class IndexProductJob implements ShouldQueue
 
         foreach ($documents as $i => $doc) {
             foreach ($chunksByDoc[$i] as $chunk) {
+                if (mb_trim($chunk['text']) === '') {
+                    continue;
+                }
+
                 $pending[] = ['doc' => $doc, 'chunk' => $chunk];
             }
         }

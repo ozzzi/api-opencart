@@ -84,7 +84,7 @@ final class IndexProductJobTest extends TestCase
 
     public function test_handle_chunks_a_long_description_into_multiple_docs(): void
     {
-        $longDescription = implode(' ', array_fill(0, 1000, 'слово'));
+        $longDescription = implode(' ', array_fill(0, 5000, 'слово'));
 
         $this->catalog->expects('getProductDocuments')->with(7)->andReturn([$this->makeDocument(
             productId: 7,
@@ -133,20 +133,42 @@ final class IndexProductJobTest extends TestCase
         $this->runJob(5);
     }
 
+    public function test_handle_skips_untranslated_variant_with_no_content(): void
+    {
+        $this->catalog->expects('getProductDocuments')->with(4866)->andReturn([$this->makeDocument(
+            productId: 4866,
+            lang: 'uk',
+            description: '',
+            name: '',
+            category: '',
+        )]);
+
+        $this->osClient->allows('deleteByQuery')->andReturn([]);
+        $this->osClient->shouldNotReceive('index');
+        $this->embeddingClient->shouldNotReceive('embed');
+
+        $this->runJob(4866);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     /**
      * @return array{product_id:int,lang:string,name:string,description:string,attributes:string,category:string,price:float,in_stock:bool,url:string,image:string}
      */
-    private function makeDocument(int $productId, string $lang, string $description): array
-    {
+    private function makeDocument(
+        int $productId,
+        string $lang,
+        string $description,
+        string $name = 'Тестовый товар',
+        string $category = 'Ноутбуки',
+    ): array {
         return [
             'product_id' => $productId,
             'lang' => $lang,
-            'name' => 'Тестовый товар',
+            'name' => $name,
             'description' => $description,
             'attributes' => 'Цвет: чёрный',
-            'category' => 'Ноутбуки',
+            'category' => $category,
             'price' => 999.99,
             'in_stock' => true,
             'url' => 'http://shop.test/product',
