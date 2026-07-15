@@ -80,6 +80,14 @@ final class CostTracker implements CostTrackerInterface
         return $this->getDailyCost() < $this->rateLimitSettings->dailyBudgetUsd;
     }
 
+    /**
+     * Returns the configured daily budget cap in USD.
+     */
+    public function getBudgetCapUsd(): float
+    {
+        return $this->rateLimitSettings->dailyBudgetUsd;
+    }
+
     private function incrementRedis(DateTimeInterface $date, float $amount): void
     {
         if ($amount <= 0.0) {

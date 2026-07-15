@@ -9,6 +9,7 @@ use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
 use App\Services\Chat\ConversationService;
 use App\Services\Chat\DTO\LlmChatMessage;
+use App\Services\Chat\DTO\ToolCall;
 use App\Settings\BotChatSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionClass;
@@ -138,6 +139,22 @@ final class ConversationServiceTest extends TestCase
         ]);
     }
 
+    public function test_add_message_stores_tool_call_id(): void
+    {
+        $session = ChatSession::factory()->create();
+
+        $message = $this->service->addMessage($session, 'tool', '{"result":true}', [
+            'tool_name' => 'search_products',
+            'tool_call_id' => 'call_abc123',
+        ]);
+
+        $this->assertDatabaseHas('chat_messages', [
+            'id' => $message->id,
+            'tool_name' => 'search_products',
+            'tool_call_id' => 'call_abc123',
+        ]);
+    }
+
     // ── buildContextWindow ────────────────────────────────────────────────────
 
     public function test_build_context_window_returns_llm_chat_messages(): void
@@ -193,6 +210,44 @@ final class ConversationServiceTest extends TestCase
 
         $this->assertCount(1, $context);
         $this->assertSame('user', $context[0]->role);
+    }
+
+    public function test_build_context_window_hydrates_tool_calls_as_dto_objects(): void
+    {
+        $session = ChatSession::factory()->create();
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'assistant',
+            'content' => '',
+            'tool_calls' => [
+                ['id' => 'call_1', 'name' => 'search_products', 'arguments' => ['query' => 'laptop']],
+            ],
+        ]);
+
+        $context = $this->service->buildContextWindow($session);
+
+        $this->assertCount(1, $context);
+        $this->assertIsArray($context[0]->toolCalls);
+        $this->assertInstanceOf(ToolCall::class, $context[0]->toolCalls[0]);
+        $this->assertSame('call_1', $context[0]->toolCalls[0]->id);
+        $this->assertSame('search_products', $context[0]->toolCalls[0]->name);
+        $this->assertSame(['query' => 'laptop'], $context[0]->toolCalls[0]->arguments);
+    }
+
+    public function test_build_context_window_includes_tool_call_id_for_tool_messages(): void
+    {
+        $session = ChatSession::factory()->create();
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'tool',
+            'content' => '{"results":[]}',
+            'tool_call_id' => 'call_1',
+        ]);
+
+        $context = $this->service->buildContextWindow($session);
+
+        $this->assertCount(1, $context);
+        $this->assertSame('call_1', $context[0]->toolCallId);
     }
 
     // ── needsSummarization ────────────────────────────────────────────────────

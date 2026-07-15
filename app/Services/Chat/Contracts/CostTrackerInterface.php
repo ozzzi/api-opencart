@@ -22,4 +22,6 @@ interface CostTrackerInterface
     public function getDailyCost(?DateTimeInterface $date = null): float;
 
     public function checkBudget(): bool;
+
+    public function getBudgetCapUsd(): float;
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Chat\Llm;
 
+use App\Exceptions\Chat\CircuitBreakerOpenException;
 use App\Exceptions\Chat\LlmUnavailableException;
 use App\Services\Chat\Contracts\LlmClientInterface;
 use App\Services\Chat\DTO\LlmRequest;
@@ -42,6 +43,7 @@ final class FallbackLlmClient implements LlmClientInterface
     public function complete(LlmRequest $request): LlmResponse
     {
         $causes = [];
+        $attempts = [];
 
         foreach ($this->clients as $index => $client) {
             try {
@@ -63,15 +65,22 @@ final class FallbackLlmClient implements LlmClientInterface
                     'error' => $e->getMessage(),
                 ]);
                 $causes[] = $e;
+                $attempts[] = [
+                    'model' => $client->getModel(),
+                    'provider' => $client->getProvider(),
+                    'error' => $e->getMessage(),
+                    'circuit_breaker_open' => $e instanceof CircuitBreakerOpenException,
+                ];
             }
         }
 
-        throw new LlmUnavailableException($causes);
+        throw new LlmUnavailableException($causes, $attempts);
     }
 
     public function stream(LlmRequest $request): Generator
     {
         $causes = [];
+        $attempts = [];
 
         foreach ($this->clients as $index => $client) {
             try {
@@ -93,10 +102,16 @@ final class FallbackLlmClient implements LlmClientInterface
                     'error' => $e->getMessage(),
                 ]);
                 $causes[] = $e;
+                $attempts[] = [
+                    'model' => $client->getModel(),
+                    'provider' => $client->getProvider(),
+                    'error' => $e->getMessage(),
+                    'circuit_breaker_open' => $e instanceof CircuitBreakerOpenException,
+                ];
             }
         }
 
-        throw new LlmUnavailableException($causes);
+        throw new LlmUnavailableException($causes, $attempts);
     }
 
     public function getModel(): string

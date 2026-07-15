@@ -8,8 +8,12 @@ use RuntimeException;
 
 final class DailyBudgetExceededException extends RuntimeException
 {
-    public function __construct()
-    {
-        parent::__construct('Daily LLM budget has been exhausted.');
+    public function __construct(
+        public readonly float $currentSpendUsd = 0.0,
+        public readonly float $dailyBudgetUsd = 0.0,
+    ) {
+        parent::__construct(
+            "Daily LLM budget exhausted. Spend: {$currentSpendUsd}, budget: {$dailyBudgetUsd}.",
+        );
     }
 }

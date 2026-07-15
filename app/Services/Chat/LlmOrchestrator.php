@@ -61,7 +61,10 @@ final class LlmOrchestrator
         }
 
         if (! $this->costTracker->checkBudget()) {
-            throw new DailyBudgetExceededException;
+            throw new DailyBudgetExceededException(
+                currentSpendUsd: $this->costTracker->getDailyCost(),
+                dailyBudgetUsd: $this->costTracker->getBudgetCapUsd(),
+            );
         }
 
         $rateLimitResult = $this->rateLimiter->check($session->id, $session->ip_address ?? '');
@@ -139,7 +142,10 @@ final class LlmOrchestrator
     {
         // 1. Budget guard
         if (! $this->costTracker->checkBudget()) {
-            throw new DailyBudgetExceededException;
+            throw new DailyBudgetExceededException(
+                currentSpendUsd: $this->costTracker->getDailyCost(),
+                dailyBudgetUsd: $this->costTracker->getBudgetCapUsd(),
+            );
         }
 
         // 2. Rate limit guard
@@ -214,6 +220,7 @@ final class LlmOrchestrator
 
                 $this->conversationService->addMessage($session, 'tool', $result, [
                     'tool_name' => $toolCall->name,
+                    'tool_call_id' => $toolCall->id,
                 ]);
 
                 yield new StreamChunk(StreamChunkType::ToolDone, toolName: $toolCall->name);
@@ -318,6 +325,7 @@ final class LlmOrchestrator
 
                 $this->conversationService->addMessage($session, 'tool', $result, [
                     'tool_name' => $toolCall->name,
+                    'tool_call_id' => $toolCall->id,
                 ]);
             }
         }

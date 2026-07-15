@@ -22,6 +22,7 @@ interface ConversationServiceInterface
      *     fallback_used?: bool,
      *     tool_calls?: array<mixed>,
      *     tool_name?: string,
+     *     tool_call_id?: string,
      * } $options
      */
     public function addMessage(ChatSession $session, string $role, string $content, array $options = []): ChatMessage;

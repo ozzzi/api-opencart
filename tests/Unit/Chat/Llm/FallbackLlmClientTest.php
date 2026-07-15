@@ -101,6 +101,49 @@ final class FallbackLlmClientTest extends TestCase
         }
     }
 
+    public function test_complete_unavailable_exception_carries_attempts_with_models_and_providers(): void
+    {
+        $primary = $this->mockClient('gpt-4o', 'openai');
+        $primary->expects('complete')->andThrow(new RuntimeException('primary failed'));
+
+        $reserve = $this->mockClient('gpt-3.5-turbo', 'openai');
+        $reserve->expects('complete')->andThrow(new RuntimeException('reserve failed'));
+
+        try {
+            $this->make([$primary, $reserve])->complete($this->makeRequest());
+            $this->fail('Expected LlmUnavailableException');
+        } catch (LlmUnavailableException $e) {
+            $attempts = $e->getAttempts();
+
+            $this->assertCount(2, $attempts);
+            $this->assertSame('gpt-4o', $attempts[0]['model']);
+            $this->assertSame('openai', $attempts[0]['provider']);
+            $this->assertSame('primary failed', $attempts[0]['error']);
+            $this->assertFalse($attempts[0]['circuit_breaker_open']);
+            $this->assertSame('gpt-3.5-turbo', $attempts[1]['model']);
+            $this->assertSame('reserve failed', $attempts[1]['error']);
+        }
+    }
+
+    public function test_complete_unavailable_exception_flags_circuit_breaker_open_attempt(): void
+    {
+        $primary = $this->mockClient('gpt-4o', 'openai');
+        $primary->expects('complete')->andThrow(new CircuitBreakerOpenException('gpt-4o', 30));
+
+        $reserve = $this->mockClient('gpt-3.5-turbo', 'openai');
+        $reserve->expects('complete')->andThrow(new RuntimeException('reserve failed'));
+
+        try {
+            $this->make([$primary, $reserve])->complete($this->makeRequest());
+            $this->fail('Expected LlmUnavailableException');
+        } catch (LlmUnavailableException $e) {
+            $attempts = $e->getAttempts();
+
+            $this->assertTrue($attempts[0]['circuit_breaker_open']);
+            $this->assertFalse($attempts[1]['circuit_breaker_open']);
+        }
+    }
+
     public function test_complete_works_with_single_client(): void
     {
         $response = $this->makeResponse('only client');
@@ -166,6 +209,35 @@ final class FallbackLlmClientTest extends TestCase
         $this->expectException(LlmUnavailableException::class);
 
         iterator_to_array($this->make([$primary, $reserve])->stream($this->makeRequest()));
+    }
+
+    public function test_stream_unavailable_exception_carries_attempts(): void
+    {
+        $primary = $this->mockClient('gpt-4o', 'openai');
+        $primary->expects('stream')->andReturnUsing(function () {
+            throw new CircuitBreakerOpenException('gpt-4o', 30);
+            yield; // make it a generator
+        });
+
+        $reserve = $this->mockClient('gpt-3.5-turbo', 'openai');
+        $reserve->expects('stream')->andReturnUsing(function () {
+            throw new RuntimeException('reserve stream failed');
+            yield;
+        });
+
+        try {
+            iterator_to_array($this->make([$primary, $reserve])->stream($this->makeRequest()));
+            $this->fail('Expected LlmUnavailableException');
+        } catch (LlmUnavailableException $e) {
+            $attempts = $e->getAttempts();
+
+            $this->assertCount(2, $attempts);
+            $this->assertSame('gpt-4o', $attempts[0]['model']);
+            $this->assertTrue($attempts[0]['circuit_breaker_open']);
+            $this->assertSame('gpt-3.5-turbo', $attempts[1]['model']);
+            $this->assertSame('reserve stream failed', $attempts[1]['error']);
+            $this->assertFalse($attempts[1]['circuit_breaker_open']);
+        }
     }
 
     // ── delegation ────────────────────────────────────────────────────────────

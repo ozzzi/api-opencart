@@ -66,10 +66,44 @@ final class LlmOrchestratorTest extends TestCase
     public function test_throws_when_daily_budget_exceeded(): void
     {
         $this->costTracker->expects('checkBudget')->andReturn(false);
+        $this->costTracker->allows('getDailyCost')->andReturn(12.34);
+        $this->costTracker->allows('getBudgetCapUsd')->andReturn(10.0);
 
         $this->expectException(DailyBudgetExceededException::class);
 
         $this->make()->processMessage($this->makeSession(), 'Hi');
+    }
+
+    public function test_daily_budget_exceeded_exception_carries_spend_and_cap(): void
+    {
+        $this->costTracker->expects('checkBudget')->andReturn(false);
+        $this->costTracker->allows('getDailyCost')->andReturn(12.34);
+        $this->costTracker->allows('getBudgetCapUsd')->andReturn(10.0);
+
+        try {
+            $this->make()->processMessage($this->makeSession(), 'Hi');
+            $this->fail('Expected DailyBudgetExceededException');
+        } catch (DailyBudgetExceededException $e) {
+            $this->assertSame(12.34, $e->currentSpendUsd);
+            $this->assertSame(10.0, $e->dailyBudgetUsd);
+        }
+    }
+
+    public function test_daily_budget_exceeded_exception_carries_spend_and_cap_when_streaming(): void
+    {
+        $this->costTracker->expects('checkBudget')->andReturn(false);
+        $this->costTracker->allows('getDailyCost')->andReturn(12.34);
+        $this->costTracker->allows('getBudgetCapUsd')->andReturn(10.0);
+
+        try {
+            /** @var Generator $generator */
+            $generator = $this->make()->processMessage($this->makeSession(), 'Hi', stream: true);
+            iterator_to_array($generator);
+            $this->fail('Expected DailyBudgetExceededException');
+        } catch (DailyBudgetExceededException $e) {
+            $this->assertSame(12.34, $e->currentSpendUsd);
+            $this->assertSame(10.0, $e->dailyBudgetUsd);
+        }
     }
 
     // ── rate limit ────────────────────────────────────────────────────────────
@@ -148,6 +182,39 @@ final class LlmOrchestratorTest extends TestCase
         $result = $this->make()->processMessage($this->makeSession(), 'Show me laptops');
 
         $this->assertSame('Here are some laptops.', $result->content);
+    }
+
+    public function test_tool_result_message_is_persisted_with_tool_call_id(): void
+    {
+        $this->costTracker->allows('checkBudget')->andReturn(true);
+        $this->rateLimiter->allows('check')->andReturn(RateLimitResult::allowed());
+        $this->shopAssistant->allows('detectLanguage')->andReturn('ru');
+        $this->shopAssistant->allows('buildSystemPrompt')->andReturn('System.');
+        $this->conversationService->allows('buildContextWindow')->andReturn([]);
+        $this->conversationService->allows('needsSummarization')->andReturn(false);
+        $this->costTracker->allows('log');
+        $this->toolRegistry->allows('getOpenAiTools')->andReturn([]);
+
+        $toolCallResponse = new LlmResponse(
+            content: null,
+            toolCalls: [new ToolCall('tc-1', 'search_products', ['query' => 'laptop'])],
+            finishReason: 'tool_calls',
+            usage: new UsageStats(10, 5, 0.0),
+        );
+        $finalResponse = $this->makeResponse('Here are some laptops.');
+
+        $this->llmClient->expects('complete')->twice()->andReturn($toolCallResponse, $finalResponse);
+        $this->toolRegistry->allows('execute')->andReturn('{"products": []}');
+
+        $this->conversationService->expects('addMessage')
+            ->with(Mockery::any(), 'tool', '{"products": []}', ['tool_name' => 'search_products', 'tool_call_id' => 'tc-1'])
+            ->once()
+            ->andReturn($this->stubMessage());
+
+        // Other addMessage calls in this flow (user message, tool-call announcement, final assistant reply).
+        $this->conversationService->allows('addMessage')->andReturn($this->stubMessage());
+
+        $this->make()->processMessage($this->makeSession(), 'Show me laptops');
     }
 
     // ── language detection ────────────────────────────────────────────────────

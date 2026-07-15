@@ -190,4 +190,11 @@ final class CostTrackerTest extends TestCase
 
         $this->assertFalse($this->tracker->checkBudget());
     }
+
+    // ── getBudgetCapUsd ───────────────────────────────────────────────────────
+
+    public function test_get_budget_cap_usd_returns_configured_value(): void
+    {
+        $this->assertSame(10.0, $this->tracker->getBudgetCapUsd());
+    }
 }

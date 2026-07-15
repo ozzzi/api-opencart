@@ -9,6 +9,7 @@ use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
 use App\Services\Chat\Contracts\ConversationServiceInterface;
 use App\Services\Chat\DTO\LlmChatMessage;
+use App\Services\Chat\DTO\ToolCall;
 use App\Settings\BotChatSettings;
 use Carbon\Carbon;
 
@@ -57,6 +58,7 @@ final class ConversationService implements ConversationServiceInterface
      *     fallback_used?: bool,
      *     tool_calls?: array<mixed>,
      *     tool_name?: string,
+     *     tool_call_id?: string,
      * } $options
      */
     public function addMessage(
@@ -75,6 +77,7 @@ final class ConversationService implements ConversationServiceInterface
             'fallback_used' => $options['fallback_used'] ?? false,
             'tool_calls' => $options['tool_calls'] ?? null,
             'tool_name' => $options['tool_name'] ?? null,
+            'tool_call_id' => $options['tool_call_id'] ?? null,
         ]);
 
         $session->last_activity_at = now();
@@ -111,8 +114,8 @@ final class ConversationService implements ConversationServiceInterface
             $context[] = new LlmChatMessage(
                 role: $message->role,
                 content: $message->content,
-                toolCalls: $message->tool_calls,
-                toolCallId: null,
+                toolCalls: $this->hydrateToolCalls($message->tool_calls),
+                toolCallId: $message->tool_call_id,
             );
         }
 
@@ -126,5 +129,27 @@ final class ConversationService implements ConversationServiceInterface
     public function needsSummarization(ChatSession $session): bool
     {
         return $session->messages()->count() > $this->settings->summaryThreshold;
+    }
+
+    /**
+     * Rehydrates the JSON-cast tool_calls column back into ToolCall DTOs.
+     *
+     * @param array<int, array{id: string, name: string, arguments: array<string, mixed>}>|null $toolCalls
+     * @return array<ToolCall>|null
+     */
+    private function hydrateToolCalls(?array $toolCalls): ?array
+    {
+        if ($toolCalls === null) {
+            return null;
+        }
+
+        return array_map(
+            static fn (array $tc) => new ToolCall(
+                id: $tc['id'],
+                name: $tc['name'],
+                arguments: $tc['arguments'],
+            ),
+            $toolCalls,
+        );
     }
 }

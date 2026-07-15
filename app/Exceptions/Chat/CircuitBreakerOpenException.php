@@ -8,8 +8,10 @@ use RuntimeException;
 
 final class CircuitBreakerOpenException extends RuntimeException
 {
-    public function __construct(string $model, int $retryAfterSeconds)
-    {
+    public function __construct(
+        public readonly string $model,
+        public readonly int $retryAfterSeconds,
+    ) {
         parent::__construct(
             "Circuit breaker open for model [{$model}]. Retry after {$retryAfterSeconds}s.",
         );

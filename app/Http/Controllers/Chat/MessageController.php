@@ -86,28 +86,57 @@ final class MessageController extends Controller
                     }
                 }
             } catch (RateLimitExceededException $e) {
+                $payload = [
+                    'message' => 'Вы пишете слишком часто. Пожалуйста, подождите немного.',
+                    'retry_after' => $e->retryAfterSeconds,
+                    'reason' => 'rate_limited_'.$e->limitType,
+                ];
+
+                if (config('app.debug')) {
+                    $payload['debug'] = [
+                        'limit_type' => $e->limitType,
+                        'retry_after_seconds' => $e->retryAfterSeconds,
+                    ];
+                }
+
                 yield new StreamedEvent(
                     event: 'limited',
-                    data: json_encode([
-                        'message' => 'Вы пишете слишком часто. Пожалуйста, подождите немного.',
-                        'retry_after' => $e->retryAfterSeconds,
-                    ], JSON_UNESCAPED_UNICODE),
+                    data: json_encode($payload, JSON_UNESCAPED_UNICODE),
                 );
-            } catch (DailyBudgetExceededException) {
+            } catch (DailyBudgetExceededException $e) {
+                $payload = [
+                    'message'       => $this->chatSettings->degradedModeMessage,
+                    'lead_suggested' => true,
+                    'reason'        => 'daily_budget_exceeded',
+                ];
+
+                if (config('app.debug')) {
+                    $payload['debug'] = [
+                        'current_spend_usd' => $e->currentSpendUsd,
+                        'daily_budget_usd'  => $e->dailyBudgetUsd,
+                    ];
+                }
+
                 yield new StreamedEvent(
                     event: 'degraded',
-                    data: json_encode([
-                        'message'       => $this->chatSettings->degradedModeMessage,
-                        'lead_suggested' => true,
-                    ], JSON_UNESCAPED_UNICODE),
+                    data: json_encode($payload, JSON_UNESCAPED_UNICODE),
                 );
-            } catch (LlmUnavailableException) {
+            } catch (LlmUnavailableException $e) {
+                $payload = [
+                    'message'       => $this->chatSettings->degradedModeMessage,
+                    'lead_suggested' => true,
+                    'reason'        => 'llm_unavailable',
+                ];
+
+                if (config('app.debug')) {
+                    $payload['debug'] = [
+                        'attempts' => $e->getAttempts(),
+                    ];
+                }
+
                 yield new StreamedEvent(
                     event: 'degraded',
-                    data: json_encode([
-                        'message'       => $this->chatSettings->degradedModeMessage,
-                        'lead_suggested' => true,
-                    ], JSON_UNESCAPED_UNICODE),
+                    data: json_encode($payload, JSON_UNESCAPED_UNICODE),
                 );
             }
         });

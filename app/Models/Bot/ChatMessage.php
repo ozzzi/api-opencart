@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string|null $content
  * @property array|null $tool_calls
  * @property string|null $tool_name
+ * @property string|null $tool_call_id
  * @property string|null $model
  * @property int|null $tokens_used
  * @property int|null $latency_ms
@@ -39,6 +40,7 @@ final class ChatMessage extends Model
         'content',
         'tool_calls',
         'tool_name',
+        'tool_call_id',
         'model',
         'tokens_used',
         'latency_ms',
