@@ -78,9 +78,7 @@ final class IndexKbArticleJob implements ShouldQueue
         }
 
         $article->opensearch_indexed_at = Carbon::now();
-        $article->save();
-
-        // [P2] Invalidate semantic cache entries related to this article.
+        $article->saveQuietly();
     }
 
     /**
