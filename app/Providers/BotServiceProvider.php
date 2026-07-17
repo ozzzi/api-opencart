@@ -21,6 +21,7 @@ use App\Services\Chat\Contracts\RetrievalServiceInterface;
 use App\Services\Chat\Contracts\ShopAssistantInterface;
 use App\Services\Chat\Contracts\ToolRegistryInterface;
 use App\Services\Chat\ConversationService;
+use App\Services\Chat\LeadIdempotencyGuard;
 use App\Services\Chat\LeadService;
 use App\Services\Chat\Llm\FallbackLlmClient;
 use App\Services\Chat\Llm\LlmClientWithCircuitBreaker;
@@ -121,6 +122,10 @@ final class BotServiceProvider extends ServiceProvider
 
         $this->app->singleton(CircuitBreakerInterface::class, function () {
             return new CircuitBreaker(Redis::connection());
+        });
+
+        $this->app->singleton(LeadIdempotencyGuard::class, function () {
+            return new LeadIdempotencyGuard(Redis::connection());
         });
 
         $this->app->singleton(ShopAssistantInterface::class, ShopAssistant::class);
