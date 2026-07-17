@@ -78,6 +78,10 @@ final class MessageController extends Controller
                                 'lead_suggested' => false,
                             ], JSON_UNESCAPED_UNICODE),
                         ),
+                        StreamChunkType::Heartbeat => new StreamedEvent(
+                            event: 'heartbeat',
+                            data: '{}',
+                        ),
                         default => null,
                     };
 

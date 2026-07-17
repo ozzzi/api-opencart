@@ -23,20 +23,14 @@ final class SessionController extends Controller
         $session = $this->conversationService->createSession(
             ip: (string) $request->ip(),
             userAgent: (string) $request->userAgent(),
-            lang: $this->detectLang($request),
+            lang: 'uk',
         );
 
         return response()->json([
             'session_id'   => $session->id,
             'greeting'     => $this->chatSettings->greetingMessage,
             'consent_text' => $this->chatSettings->consentText,
+            'policy_url'   => $this->chatSettings->policyUrl,
         ], 201);
-    }
-
-    private function detectLang(Request $request): string
-    {
-        $accept = mb_strtolower((string) $request->header('Accept-Language', 'ru'));
-
-        return str_starts_with($accept, 'uk') ? 'uk' : 'ru';
     }
 }

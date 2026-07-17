@@ -76,9 +76,6 @@ final class LlmOrchestrator
             );
         }
 
-        $detectedLang = $this->shopAssistant->detectLanguage($userMessage);
-        $session->language = $detectedLang;
-
         $this->conversationService->addMessage($session, 'user', $userMessage);
 
         // 5 + 6. Build context window + prepend system prompt
@@ -158,9 +155,6 @@ final class LlmOrchestrator
             );
         }
 
-        // 3. Detect language
-        $session->language = $this->shopAssistant->detectLanguage($userMessage);
-
         // 4. Persist user message
         $this->conversationService->addMessage($session, 'user', $userMessage);
 
@@ -181,6 +175,11 @@ final class LlmOrchestrator
         $finalResponse = null;
 
         for ($i = 0; $i < self::MAX_TOOL_ITERATIONS; $i++) {
+            // Keep the SSE connection alive across each blocking LLM call / tool
+            // execution so a long tool-loop doesn't sit silent past a proxy's
+            // read timeout.
+            yield new StreamChunk(StreamChunkType::Heartbeat);
+
             $request = new LlmRequest(
                 messages: $messages,
                 model: $this->llmClient->getModel(),

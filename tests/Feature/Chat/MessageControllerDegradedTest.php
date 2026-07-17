@@ -170,7 +170,6 @@ final class MessageControllerDegradedTest extends TestCase
     {
         $this->costTracker->allows('checkBudget')->andReturn(true);
         $this->rateLimiter->allows('check')->andReturn(RateLimitResult::allowed());
-        $this->shopAssistant->allows('detectLanguage')->andReturn('ru');
         $this->shopAssistant->allows('buildSystemPrompt')->andReturn('System prompt.');
         $this->conversationService->allows('addMessage')->andReturn($this->stubMessage());
         $this->conversationService->allows('buildContextWindow')->andReturn([]);

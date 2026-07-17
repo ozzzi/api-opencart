@@ -29,80 +29,28 @@ final class ShopAssistantTest extends TestCase
     {
         Carbon::setTestNow('2026-06-12');
 
-        $prompt = $this->make()->buildSystemPrompt($this->makeSession('ru'));
+        $prompt = $this->make()->buildSystemPrompt($this->makeSession());
 
-        $this->assertStringContainsString('Russian', $prompt);
+        $this->assertStringContainsString('Ukrainian', $prompt);
         $this->assertStringContainsString('2026-06-12', $prompt);
 
         Carbon::setTestNow();
     }
 
-    public function test_substitutes_ukrainian_language_label(): void
+    public function test_reply_language_is_always_ukrainian_regardless_of_session_language(): void
     {
-        $prompt = $this->make()->buildSystemPrompt($this->makeSession('uk'));
+        $prompt = $this->make()->buildSystemPrompt($this->makeSession('ru'));
 
         $this->assertStringContainsString('Ukrainian', $prompt);
-    }
-
-    public function test_unknown_language_falls_back_to_russian_label(): void
-    {
-        $prompt = $this->make()->buildSystemPrompt($this->makeSession('de'));
-
-        $this->assertStringContainsString('Russian', $prompt);
     }
 
     public function test_prompt_without_placeholders_is_returned_as_is(): void
     {
         $this->settings->systemPrompt = 'Static prompt.';
 
-        $prompt = $this->make()->buildSystemPrompt($this->makeSession('ru'));
+        $prompt = $this->make()->buildSystemPrompt($this->makeSession());
 
         $this->assertSame('Static prompt.', $prompt);
-    }
-
-    // ── detectLanguage ────────────────────────────────────────────────────────
-
-    public function test_empty_string_returns_ru(): void
-    {
-        $this->assertSame('ru', $this->make()->detectLanguage(''));
-    }
-
-    public function test_latin_only_returns_ru(): void
-    {
-        $this->assertSame('ru', $this->make()->detectLanguage('Hello world'));
-    }
-
-    public function test_russian_text_returns_ru(): void
-    {
-        $this->assertSame('ru', $this->make()->detectLanguage('Привет, как дела?'));
-    }
-
-    public function test_ukrainian_specific_chars_return_uk(): void
-    {
-        // "Як справи?" — contains і (Ukrainian exclusive)
-        $this->assertSame('uk', $this->make()->detectLanguage('Як справи? Всі добрі.'));
-    }
-
-    public function test_text_with_many_ukrainian_chars_returns_uk(): void
-    {
-        $this->assertSame('uk', $this->make()->detectLanguage('Привіт, як тебе звати? Мені цікаво.'));
-    }
-
-    public function test_threshold_just_above_three_percent_returns_uk(): void
-    {
-        // Build a string where ~4% of Cyrillic chars are Ukrainian-exclusive
-        // 1 Ukrainian char (і) + 24 Russian Cyrillic chars
-        $text = 'аааааааааааааааааааааааа' . 'і';
-
-        $this->assertSame('uk', $this->make()->detectLanguage($text));
-    }
-
-    public function test_threshold_below_three_percent_returns_ru(): void
-    {
-        // 1 Ukrainian char (і) + 99 Russian Cyrillic chars → 1% → Russian
-        $text = str_repeat('а', 99) . 'і';
-
-        $this->assertSame('ru', $this->make()->detectLanguage($text));
     }
 
     private function make(): ShopAssistant
@@ -110,7 +58,7 @@ final class ShopAssistantTest extends TestCase
         return new ShopAssistant($this->settings);
     }
 
-    private function makeSession(string $language): ChatSession
+    private function makeSession(string $language = 'uk'): ChatSession
     {
         $session = new ChatSession;
         $session->language = $language;

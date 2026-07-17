@@ -9,6 +9,4 @@ use App\Models\Bot\ChatSession;
 interface ShopAssistantInterface
 {
     public function buildSystemPrompt(ChatSession $session): string;
-
-    public function detectLanguage(string $text): string;
 }

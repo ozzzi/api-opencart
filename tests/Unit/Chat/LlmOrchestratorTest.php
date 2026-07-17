@@ -152,7 +152,6 @@ final class LlmOrchestratorTest extends TestCase
     {
         $this->costTracker->allows('checkBudget')->andReturn(true);
         $this->rateLimiter->allows('check')->andReturn(RateLimitResult::allowed());
-        $this->shopAssistant->allows('detectLanguage')->andReturn('ru');
         $this->shopAssistant->allows('buildSystemPrompt')->andReturn('System.');
         $this->conversationService->allows('buildContextWindow')->andReturn([]);
         $this->conversationService->allows('needsSummarization')->andReturn(false);
@@ -188,7 +187,6 @@ final class LlmOrchestratorTest extends TestCase
     {
         $this->costTracker->allows('checkBudget')->andReturn(true);
         $this->rateLimiter->allows('check')->andReturn(RateLimitResult::allowed());
-        $this->shopAssistant->allows('detectLanguage')->andReturn('ru');
         $this->shopAssistant->allows('buildSystemPrompt')->andReturn('System.');
         $this->conversationService->allows('buildContextWindow')->andReturn([]);
         $this->conversationService->allows('needsSummarization')->andReturn(false);
@@ -215,23 +213,6 @@ final class LlmOrchestratorTest extends TestCase
         $this->conversationService->allows('addMessage')->andReturn($this->stubMessage());
 
         $this->make()->processMessage($this->makeSession(), 'Show me laptops');
-    }
-
-    // ── language detection ────────────────────────────────────────────────────
-
-    public function test_session_language_is_updated_when_detected_language_differs(): void
-    {
-        $this->allowPassThrough();
-        $this->llmClient->allows('complete')->andReturn($this->makeResponse());
-        $this->shopAssistant->allows('detectLanguage')->andReturn('uk');
-
-        $session = $this->makeSession(); // language = 'ru'
-
-        // Session needs save() — mock it by using a real ChatSession (no DB)
-        // We check the language was changed
-        $this->make()->processMessage($session, 'Привіт');
-
-        $this->assertSame('uk', $session->language);
     }
 
     // ── summarization ─────────────────────────────────────────────────────────
@@ -278,11 +259,12 @@ final class LlmOrchestratorTest extends TestCase
 
         $chunks = iterator_to_array($generator, false);
 
-        $this->assertCount(3, $chunks);
+        $this->assertCount(4, $chunks);
         $this->assertSame(StreamChunkType::Start, $chunks[0]->type);
-        $this->assertSame(StreamChunkType::Text, $chunks[1]->type);
-        $this->assertSame('Streaming answer', $chunks[1]->content);
-        $this->assertSame(StreamChunkType::Done, $chunks[2]->type);
+        $this->assertSame(StreamChunkType::Heartbeat, $chunks[1]->type);
+        $this->assertSame(StreamChunkType::Text, $chunks[2]->type);
+        $this->assertSame('Streaming answer', $chunks[2]->content);
+        $this->assertSame(StreamChunkType::Done, $chunks[3]->type);
     }
 
     public function test_cost_is_logged_after_successful_response(): void
@@ -352,7 +334,6 @@ final class LlmOrchestratorTest extends TestCase
     {
         $this->costTracker->allows('checkBudget')->andReturn(true);
         $this->rateLimiter->allows('check')->andReturn(RateLimitResult::allowed());
-        $this->shopAssistant->shouldReceive('detectLanguage')->andReturn('ru')->byDefault();
         $this->shopAssistant->allows('buildSystemPrompt')->andReturn('You are a bot.');
         $this->conversationService->shouldReceive('addMessage')->andReturn($this->stubMessage())->byDefault();
         $this->conversationService->allows('buildContextWindow')->andReturn([]);
