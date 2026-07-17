@@ -14,6 +14,8 @@ final class BotChatSettings extends Settings
 
     public string $consentText;
 
+    public string $policyUrl;
+
     public int $contextWindowSize;
 
     public int $summaryThreshold;

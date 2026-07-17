@@ -119,6 +119,17 @@
                         <p class="mt-2 text-[10px] text-slate-600">Показується користувачу при першому відкритті чату.</p>
                     </div>
 
+                    {{-- Policy URL --}}
+                    <div class="admin-card p-5">
+                        <label for="policyUrl" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Посилання на політику конфіденційності</label>
+                        <input type="text" id="policyUrl" name="policyUrl"
+                               value="{{ old('policyUrl', $chat->policyUrl) }}"
+                               class="input-field w-full rounded-xl px-4 py-3 text-sm text-white @error('policyUrl') ring-1 ring-red-500/50 @enderror"
+                        >
+                        @error('policyUrl')<p class="mt-1.5 text-xs text-red-400">{{ $message }}</p>@enderror
+                        <p class="mt-2 text-[10px] text-slate-600">Повертається разом із текстом згоди у відповіді /session.</p>
+                    </div>
+
                     {{-- Summarization prompt --}}
                     <div class="admin-card p-5">
                         <label for="summarizationPrompt" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Промпт суммаризації</label>

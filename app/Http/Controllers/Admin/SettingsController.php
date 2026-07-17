@@ -45,6 +45,7 @@ final class SettingsController extends Controller
         $chat->systemPrompt = $data['systemPrompt'];
         $chat->greetingMessage = $data['greetingMessage'];
         $chat->consentText = $data['consentText'];
+        $chat->policyUrl = $data['policyUrl'];
         $chat->contextWindowSize = (int) $data['contextWindowSize'];
         $chat->summaryThreshold = (int) $data['summaryThreshold'];
         $chat->sessionTtlMinutes = (int) $data['sessionTtlMinutes'];
