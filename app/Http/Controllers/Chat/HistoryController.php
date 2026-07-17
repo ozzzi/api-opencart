@@ -16,9 +16,12 @@ final class HistoryController extends Controller
         /** @var ChatSession $session */
         $session = $request->attributes->get('chat_session');
 
+        $order = $request->query('order', 'asc');
+        $order = in_array($order, ['asc', 'desc'], true) ? $order : 'asc';
+
         $messages = $session->messages()
             ->whereIn('role', ['user', 'assistant'])
-            ->orderBy('id')
+            ->orderBy('id', $order)
             ->paginate(20);
 
         return response()->json($messages);
