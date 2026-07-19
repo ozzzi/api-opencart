@@ -26,6 +26,12 @@ return [
         'text-embedding-ada-002' => ['input' => 0.00010, 'output' => 0.0],
     ],
 
+    'embedding' => [
+        'dimensions'  => (int) env('BOT_EMBEDDING_DIMENSIONS', 1536),
+        'local_url'   => env('BOT_EMBEDDER_URL', ''),
+        'local_token' => env('BOT_EMBEDDER_TOKEN', ''),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | RAG Retrieval

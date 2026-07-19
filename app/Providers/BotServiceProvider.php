@@ -87,8 +87,8 @@ final class BotServiceProvider extends ServiceProvider
             }
 
             return new LocalHttpEmbeddingClient(
-                url: (string) config('services.search.embedder_url'),
-                token: (string) config('services.search.embedder_token'),
+                url: (string) config('bot.embedding.local_url'),
+                token: (string) config('bot.embedding.local_token'),
                 model: $llm->embeddingModel,
                 dimensions: $llm->embeddingDimensions,
             );

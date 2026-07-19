@@ -77,12 +77,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Embedding
+    | Embedding (plain product search only)
     |--------------------------------------------------------------------------
     |
-    | dimensions must match the model output size.
-    | Local model paraphrase-multilingual-MiniLM-L12-v2 → 384.
-    | OpenAI text-embedding-3-small → 1536.
+    | Local embedding model served by the vector-api container and used to
+    | vectorize the "products" index (name_vector field) via the OpenSearch
+    | ML connector registered by `search:setup`.
+    |
+    | dimensions must match the model output size, e.g. local model
+    | paraphrase-multilingual-MiniLM-L12-v2 → 384.
+    |
+    | This is unrelated to the AI chat's own embeddings, which are
+    | configured separately in config/bot.php.
     |
     */
 

@@ -236,7 +236,7 @@ final readonly class OpensearchIndexer implements Indexer, StopWord
 
         $fields['name_vector'] = [
             'type' => 'knn_vector',
-            'dimension' => 384,
+            'dimension' => (int) config('opensearch.embedding.dimensions', 384),
             'method' => [
                 'name' => 'hnsw',
                 'space_type' => "cosinesimil",

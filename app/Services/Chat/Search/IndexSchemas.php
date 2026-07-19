@@ -225,6 +225,6 @@ final class IndexSchemas
 
     private static function dimensions(): int
     {
-        return (int) config('opensearch.embedding.dimensions', 384);
+        return (int) config('bot.embedding.dimensions', 1536);
     }
 }
