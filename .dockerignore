@@ -1,0 +1,19 @@
+.git
+.DS_Store
+.env
+.env.backup
+.env.production
+node_modules
+vendor
+storage/*.log
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/views
+
+# live data volumes bind-mounted into containers — must never enter the build context
+docker/db
+docker/opensearch/data
+docker/manticore
+docker/meilisearch
+docker/typesense
