@@ -19,6 +19,25 @@ services:
             - PHP_UPLOAD_MAX_FILESIZE=64M
             - PHP_POST_MAX_SIZE=64M
             - PHP_DISPLAY_ERROR=off
+        depends_on:
+            - db
+        networks:
+            - api
+
+    db:
+        image: mysql:8.0
+        container_name: db-api-opencart
+        platform: linux/amd64
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: ${DB_DATABASE}
+            MYSQL_USER: ${DB_USERNAME}
+            MYSQL_PASSWORD: ${DB_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+        ports:
+            - "${DB_PORT}:3306"
+        volumes:
+            - ./docker/db:/var/lib/mysql
         networks:
             - api
 
