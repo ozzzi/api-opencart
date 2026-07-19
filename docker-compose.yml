@@ -4,7 +4,7 @@ services:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        image: digitalocean.com/php
+        image: api/php
         container_name: php-api-opencart
         platform: linux/amd64
         restart: unless-stopped
