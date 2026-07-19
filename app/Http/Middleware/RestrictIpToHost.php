@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 use function str_contains;
 use function explode;
 use function is_string;
-use function trim;
+use function mb_trim;
 
 final class RestrictIpToHost
 {
@@ -27,9 +27,10 @@ final class RestrictIpToHost
 
         $allowedIPs = [
             config('api.ip_address'),
+            config('api.admin_ip_address'),
             '127.0.0.1',
             '::1',
-            'localhost'
+            'localhost',
         ];
 
         if (!in_array($clientIP, $allowedIPs, true)) {
@@ -68,7 +69,7 @@ final class RestrictIpToHost
             $ip = $serverValue;
 
             if (str_contains($ip, ',')) {
-                $ip = trim(explode(',', $ip)[0]);
+                $ip = mb_trim(explode(',', $ip)[0]);
             }
 
             if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
