@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\OpenCart\ReadOnlyModel;
 
 /**
  * @property int $review_id
@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int $rating
  * @property int $status
  */
-final class Review extends Model
+final class Review extends ReadOnlyModel
 {
     protected $table = 'review';
 

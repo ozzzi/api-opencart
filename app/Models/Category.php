@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\OpenCart\ReadOnlyModel;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int $parent_id
  * @property-read CategoryDescription $description
  */
-final class Category extends Model
+final class Category extends ReadOnlyModel
 {
     protected $table = 'category';
 

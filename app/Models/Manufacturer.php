@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\OpenCart\ReadOnlyModel;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $name
  * @property-read Collection<int, Product> $products
  */
-final class Manufacturer extends Model
+final class Manufacturer extends ReadOnlyModel
 {
     protected $table = 'manufacturer';
 

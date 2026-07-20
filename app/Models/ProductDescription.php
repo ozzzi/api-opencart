@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\OpenCart\ReadOnlyModel;
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * @property int $product_id
@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $description
  * @property-read string $descriptionRaw
  */
-final class ProductDescription extends Model
+final class ProductDescription extends ReadOnlyModel
 {
     protected $table = 'product_description';
 

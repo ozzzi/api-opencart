@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\Language as LanguageEnum;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\OpenCart\ReadOnlyModel;
 
 /**
  * @property int $language_id
  * @property string $name
  * @property string $code
  */
-final class Language extends Model
+final class Language extends ReadOnlyModel
 {
     protected $table = 'language';
 

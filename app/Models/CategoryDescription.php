@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\OpenCart\ReadOnlyModel;
 
 /**
  * @property int $category_id
@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $name
  * @property string $description
  */
-final class CategoryDescription extends Model
+final class CategoryDescription extends ReadOnlyModel
 {
     protected $table = 'category_description';
 }

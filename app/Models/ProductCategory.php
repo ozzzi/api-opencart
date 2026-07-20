@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\OpenCart\ReadOnlyModel;
 
-final class ProductCategory extends Model
+final class ProductCategory extends ReadOnlyModel
 {
     protected $table = 'product_to_category';
 }

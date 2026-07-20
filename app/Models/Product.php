@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Builders\ProductBuilder;
+use App\Models\OpenCart\ReadOnlyModel;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -27,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @property-read Collection<int, Review> $reviews
  * @method static Builder<Product> active()
  */
-final class Product extends Model
+final class Product extends ReadOnlyModel
 {
     protected $table = 'product';
 
