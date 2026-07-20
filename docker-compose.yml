@@ -75,7 +75,7 @@ services:
         image: redis
         container_name: redis-api-opencart
         platform: linux/amd64
-        command: redis-server --requirepass ${REDIS_PASSWORD} --overcommit-memory=1
+        command: redis-server --requirepass ${REDIS_PASSWORD}
         restart: unless-stopped
         networks:
             - api
