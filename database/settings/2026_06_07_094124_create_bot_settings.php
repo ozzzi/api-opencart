@@ -39,7 +39,7 @@ return new class extends SettingsMigration {
             $blueprint->add('leadEmailRecipient', '');
             $blueprint->add('leadTelegramEnabled', false);
             $blueprint->add('leadTelegramChatId', '');
-            $blueprint->add('leadTelegramBotToken', '');
+            $blueprint->addEncrypted('leadTelegramBotToken', '');
         });
 
         $this->migrator->inGroup('bot_privacy', function ($blueprint) {
