@@ -57,6 +57,63 @@ services:
         networks:
             - api
 
+    horizon:
+        image: api/php
+        container_name: horizon-api-opencart
+        platform: linux/amd64
+        restart: unless-stopped
+        working_dir: /var/www
+        command: php artisan horizon
+        profiles:
+            - production
+        environment:
+            - PHP_OPCACHE_ENABLE=1
+            - PHP_MEMORY_LIMIT=512M
+            - PHP_MAX_EXECUTION_TIME=0
+            - PHP_UPLOAD_MAX_FILESIZE=64M
+            - PHP_POST_MAX_SIZE=64M
+            - PHP_DISPLAY_ERROR=off
+        volumes:
+            - .:/var/www
+        depends_on:
+            - app
+            - redis
+            - db
+        stop_grace_period: 210s
+        healthcheck:
+            test: ["CMD-SHELL", "php artisan horizon:status | grep -q running"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 20s
+        networks:
+            - api
+
+    scheduler:
+        image: api/php
+        container_name: scheduler-api-opencart
+        platform: linux/amd64
+        restart: unless-stopped
+        working_dir: /var/www
+        command: php artisan schedule:work
+        profiles:
+            - production
+        environment:
+            - PHP_OPCACHE_ENABLE=1
+            - PHP_MEMORY_LIMIT=128M
+            - PHP_MAX_EXECUTION_TIME=0
+            - PHP_UPLOAD_MAX_FILESIZE=64M
+            - PHP_POST_MAX_SIZE=64M
+            - PHP_DISPLAY_ERROR=off
+        volumes:
+            - .:/var/www
+        depends_on:
+            - app
+            - redis
+            - db
+        networks:
+            - api
+
     webserver:
         image: nginx:alpine
         container_name: webserver-api-opencart

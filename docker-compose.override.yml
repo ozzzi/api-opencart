@@ -18,6 +18,16 @@ services:
         networks:
           - api
 
+    horizon:
+        platform: linux/arm64
+        networks:
+          - api
+
+    scheduler:
+        platform: linux/arm64
+        networks:
+          - api
+
     webserver:
         image: arm64v8/nginx:alpine
         platform: linux/arm64
