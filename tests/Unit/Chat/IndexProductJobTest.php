@@ -8,7 +8,6 @@ use App\Jobs\IndexProductJob;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
 use App\Services\Chat\Contracts\OpenCartCatalogInterface;
 use App\Services\Chat\Search\OpenSearchIndexer;
-use App\Services\Chat\Search\TextChunker;
 use Mockery;
 use Mockery\MockInterface;
 use OpenSearch\Client;
@@ -16,6 +15,8 @@ use Tests\TestCase;
 
 final class IndexProductJobTest extends TestCase
 {
+    private const int MAX_EMBED_CHARS = 8000;
+
     private MockInterface $catalog;
 
     private MockInterface $embeddingClient;
@@ -24,6 +25,12 @@ final class IndexProductJobTest extends TestCase
 
     private OpenSearchIndexer $indexer;
 
+    /** @var list<list<string>> Texts passed to each embed() call. */
+    private array $embeddedTexts = [];
+
+    /** @var list<array<string, mixed>> Params of each index() call. */
+    private array $indexedDocuments = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -31,16 +38,18 @@ final class IndexProductJobTest extends TestCase
         $this->catalog = Mockery::mock(OpenCartCatalogInterface::class);
 
         $this->embeddingClient = Mockery::mock(EmbeddingClientInterface::class);
-        $this->embeddingClient->allows('embed')->andReturnUsing(
-            fn (array $texts) => array_fill(0, count($texts), [0.1, 0.2, 0.3]),
-        );
+        $this->embeddingClient->allows('embed')->andReturnUsing(function (array $texts) {
+            $this->embeddedTexts[] = $texts;
+
+            return array_fill(0, count($texts), [0.1, 0.2, 0.3]);
+        });
 
         $this->osClient = Mockery::mock(Client::class);
 
         $this->indexer = new OpenSearchIndexer($this->osClient);
     }
 
-    public function test_handle_deletes_existing_chunks_and_returns_when_product_missing(): void
+    public function test_handle_deletes_existing_documents_and_returns_when_product_missing(): void
     {
         $this->catalog->expects('getProductDocuments')->with(99)->andReturn([]);
 
@@ -57,34 +66,53 @@ final class IndexProductJobTest extends TestCase
         $this->runJob(99);
     }
 
-    public function test_handle_indexes_short_description_as_a_single_chunk(): void
+    public function test_handle_indexes_one_document_per_language(): void
+    {
+        $this->catalog->expects('getProductDocuments')->with(42)->andReturn([
+            $this->makeDocument(productId: 42, lang: 'ru', description: 'Короткое описание товара.'),
+            $this->makeDocument(productId: 42, lang: 'uk', description: 'Короткий опис товару.'),
+        ]);
+
+        $this->osClient->allows('deleteByQuery')->andReturn([]);
+        $this->captureIndexedDocuments();
+
+        $this->runJob(42);
+
+        $this->assertCount(2, $this->indexedDocuments);
+        $this->assertSame(['42_ru', '42_uk'], array_column($this->indexedDocuments, 'id'));
+
+        foreach ($this->indexedDocuments as $params) {
+            $this->assertSame(42, $params['body']['product_id']);
+            $this->assertArrayNotHasKey('chunk_index', $params['body']);
+        }
+
+        // Both language variants go out in a single embed() call.
+        $this->assertCount(1, $this->embeddedTexts);
+        $this->assertCount(2, $this->embeddedTexts[0]);
+    }
+
+    public function test_handle_embeds_name_category_and_attributes_before_the_description(): void
     {
         $this->catalog->expects('getProductDocuments')->with(42)->andReturn([$this->makeDocument(
             productId: 42,
             lang: 'ru',
-            description: 'A short product description.',
+            description: 'Короткое описание товара.',
         )]);
 
         $this->osClient->allows('deleteByQuery')->andReturn([]);
-
-        $captured = [];
-        $this->osClient->expects('index')->once()->andReturnUsing(function (array $params) use (&$captured) {
-            $captured[] = $params;
-
-            return ['result' => 'created'];
-        });
+        $this->osClient->allows('index')->andReturn(['result' => 'created']);
 
         $this->runJob(42);
 
-        $this->assertCount(1, $captured);
-        $this->assertSame('42_ru_0', $captured[0]['id']);
-        $this->assertSame(0, $captured[0]['body']['chunk_index']);
-        $this->assertSame(42, $captured[0]['body']['product_id']);
+        $this->assertSame(
+            'Тестовый товар Ноутбуки Цвет: чёрный Короткое описание товара.',
+            $this->embeddedTexts[0][0],
+        );
     }
 
-    public function test_handle_chunks_a_long_description_into_multiple_docs(): void
+    public function test_handle_truncates_the_embedded_text_but_indexes_the_full_description(): void
     {
-        $longDescription = implode(' ', array_fill(0, 5000, 'слово'));
+        $longDescription = str_repeat('слово ', 5000);
 
         $this->catalog->expects('getProductDocuments')->with(7)->andReturn([$this->makeDocument(
             productId: 7,
@@ -93,26 +121,19 @@ final class IndexProductJobTest extends TestCase
         )]);
 
         $this->osClient->allows('deleteByQuery')->andReturn([]);
-
-        $captured = [];
-        $this->osClient->allows('index')->andReturnUsing(function (array $params) use (&$captured) {
-            $captured[] = $params;
-
-            return ['result' => 'created'];
-        });
+        $this->captureIndexedDocuments();
 
         $this->runJob(7);
 
-        $this->assertGreaterThan(1, count($captured));
+        $this->assertSame(self::MAX_EMBED_CHARS, mb_strlen($this->embeddedTexts[0][0]));
 
-        foreach ($captured as $i => $params) {
-            $this->assertSame(7, $params['body']['product_id']);
-            $this->assertSame($i, $params['body']['chunk_index']);
-            $this->assertSame("7_ru_{$i}", $params['id']);
-        }
+        // Still a single document, carrying the untruncated description.
+        $this->assertCount(1, $this->indexedDocuments);
+        $this->assertSame('7_ru', $this->indexedDocuments[0]['id']);
+        $this->assertSame($longDescription, $this->indexedDocuments[0]['body']['description']);
     }
 
-    public function test_handle_deletes_stale_chunks_before_reindexing(): void
+    public function test_handle_deletes_stale_documents_before_reindexing(): void
     {
         $this->catalog->expects('getProductDocuments')->with(5)->andReturn([$this->makeDocument(
             productId: 5,
@@ -133,42 +154,30 @@ final class IndexProductJobTest extends TestCase
         $this->runJob(5);
     }
 
-    public function test_handle_skips_untranslated_variant_with_no_content(): void
-    {
-        $this->catalog->expects('getProductDocuments')->with(4866)->andReturn([$this->makeDocument(
-            productId: 4866,
-            lang: 'uk',
-            description: '',
-            name: '',
-            category: '',
-        )]);
-
-        $this->osClient->allows('deleteByQuery')->andReturn([]);
-        $this->osClient->shouldNotReceive('index');
-        $this->embeddingClient->shouldNotReceive('embed');
-
-        $this->runJob(4866);
-    }
-
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /** Record every document handed to OpenSearch into $this->indexedDocuments. */
+    private function captureIndexedDocuments(): void
+    {
+        $this->osClient->allows('index')->andReturnUsing(function (array $params) {
+            $this->indexedDocuments[] = $params;
+
+            return ['result' => 'created'];
+        });
+    }
 
     /**
      * @return array{product_id:int,lang:string,name:string,description:string,attributes:string,category:string,price:float,in_stock:bool,url:string,image:string}
      */
-    private function makeDocument(
-        int $productId,
-        string $lang,
-        string $description,
-        string $name = 'Тестовый товар',
-        string $category = 'Ноутбуки',
-    ): array {
+    private function makeDocument(int $productId, string $lang, string $description): array
+    {
         return [
             'product_id' => $productId,
             'lang' => $lang,
-            'name' => $name,
+            'name' => 'Тестовый товар',
             'description' => $description,
             'attributes' => 'Цвет: чёрный',
-            'category' => $category,
+            'category' => 'Ноутбуки',
             'price' => 999.99,
             'in_stock' => true,
             'url' => 'http://shop.test/product',
@@ -191,6 +200,6 @@ final class IndexProductJobTest extends TestCase
         /** @var EmbeddingClientInterface $embeddingClient */
         $embeddingClient = $this->embeddingClient;
 
-        $job->handle($catalog, $embeddingClient, $this->indexer, new TextChunker);
+        $job->handle($catalog, $embeddingClient, $this->indexer);
     }
 }

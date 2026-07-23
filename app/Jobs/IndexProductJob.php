@@ -7,7 +7,6 @@ namespace App\Jobs;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
 use App\Services\Chat\Contracts\OpenCartCatalogInterface;
 use App\Services\Chat\Search\OpenSearchIndexer;
-use App\Services\Chat\Search\TextChunker;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
@@ -21,12 +20,15 @@ final class IndexProductJob implements ShouldQueue
 {
     use Queueable;
 
-    private const int CHUNK_SIZE = 400;
-
-    private const int CHUNK_OVERLAP = 50;
-
-    /** Maximum chunks per embed() call to avoid oversized HTTP payloads. */
-    private const int EMBED_BATCH_SIZE = 5;
+    /**
+     * Hard cap on the text sent to the embeddings API.
+     *
+     * OpenAI's text-embedding-3-* models accept 8192 tokens; 8000 characters
+     * stays under that even in the worst case of one token per Cyrillic
+     * character. Only the embedding payload is truncated — the full
+     * description is still stored in the index for BM25.
+     */
+    private const int MAX_EMBED_CHARS = 8000;
 
     public function __construct(
         public readonly int $productId,
@@ -38,7 +40,6 @@ final class IndexProductJob implements ShouldQueue
         OpenCartCatalogInterface $catalog,
         EmbeddingClientInterface $embeddingClient,
         OpenSearchIndexer $indexer,
-        TextChunker $chunker,
     ): void {
         $index = (string) config('opensearch.indices.products');
 
@@ -53,52 +54,47 @@ final class IndexProductJob implements ShouldQueue
             return;
         }
 
-        $chunksByDoc = array_map(
-            static fn (array $doc): array => $chunker->chunk(
-                "{$doc['name']} {$doc['category']}",
-                $doc['description'],
-                self::CHUNK_SIZE,
-                self::CHUNK_OVERLAP,
-            ),
-            $documents,
-        );
+        // Embed all language variants in one batch call.
+        $texts = array_map($this->buildEmbeddingText(...), $documents);
 
-        $pending = [];
+        $vectors = $embeddingClient->embed($texts);
 
         foreach ($documents as $i => $doc) {
-            foreach ($chunksByDoc[$i] as $chunk) {
-                if (mb_trim($chunk['text']) === '') {
-                    continue;
-                }
+            $docId = "{$doc['product_id']}_{$doc['lang']}";
 
-                $pending[] = ['doc' => $doc, 'chunk' => $chunk];
-            }
+            $indexer->upsert($index, $docId, [
+                'product_id'     => $doc['product_id'],
+                'lang'           => $doc['lang'],
+                'name'           => $doc['name'],
+                'description'    => $doc['description'],
+                'attributes'     => $doc['attributes'],
+                'category'       => $doc['category'],
+                'price'          => $doc['price'],
+                'in_stock'       => $doc['in_stock'],
+                'url'            => $doc['url'],
+                'image'          => $doc['image'],
+                'content_vector' => $vectors[$i],
+            ]);
         }
+    }
 
-        foreach (array_chunk($pending, self::EMBED_BATCH_SIZE, preserve_keys: true) as $batch) {
-            $texts = array_map(static fn (array $item): string => $item['chunk']['text'], $batch);
-            $vectors = $embeddingClient->embed($texts);
+    /**
+     * Build the text embedded for a single language variant.
+     *
+     * Short high-signal fields come first so truncation only ever eats the
+     * tail of the description.
+     *
+     * @param array{name:string,description:string,attributes:string,category:string} $doc
+     */
+    private function buildEmbeddingText(array $doc): string
+    {
+        $text = implode(' ', array_filter([
+            $doc['name'],
+            $doc['category'],
+            $doc['attributes'],
+            $doc['description'],
+        ]));
 
-            foreach (array_values($batch) as $offset => $item) {
-                $doc = $item['doc'];
-                $chunkIndex = $item['chunk']['index'];
-                $docId = "{$doc['product_id']}_{$doc['lang']}_{$chunkIndex}";
-
-                $indexer->upsert($index, $docId, [
-                    'product_id'     => $doc['product_id'],
-                    'chunk_index'    => $chunkIndex,
-                    'lang'           => $doc['lang'],
-                    'name'           => $doc['name'],
-                    'description'    => $item['chunk']['text'],
-                    'attributes'     => $doc['attributes'],
-                    'category'       => $doc['category'],
-                    'price'          => $doc['price'],
-                    'in_stock'       => $doc['in_stock'],
-                    'url'            => $doc['url'],
-                    'image'          => $doc['image'],
-                    'content_vector' => $vectors[$offset],
-                ]);
-            }
-        }
+        return mb_substr($text, 0, self::MAX_EMBED_CHARS);
     }
 }

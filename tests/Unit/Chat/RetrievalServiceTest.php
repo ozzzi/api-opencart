@@ -43,33 +43,46 @@ final class RetrievalServiceTest extends TestCase
         $this->service = new RetrievalService($embeddingClient, new HybridSearcher($this->osClient));
     }
 
-    public function test_retrieve_products_dedupes_chunks_from_the_same_product(): void
+    public function test_retrieve_products_requests_exactly_top_k_and_keeps_every_hit(): void
     {
-        // 3 chunks of product 1 (best-scoring first), 2 chunks of product 2, 1 of product 3.
+        // One document per product+lang — nothing to collapse.
         $hits = [
-            $this->hit('1_ru_0', 0.95, 1),
-            $this->hit('1_ru_1', 0.90, 1),
-            $this->hit('2_ru_0', 0.85, 2),
-            $this->hit('1_ru_2', 0.80, 1),
-            $this->hit('2_ru_1', 0.75, 2),
-            $this->hit('3_ru_0', 0.70, 3),
+            $this->hit('1_ru', 0.95, 1),
+            $this->hit('2_ru', 0.85, 2),
+            $this->hit('3_ru', 0.70, 3),
         ];
 
         $this->osClient
             ->expects('search')
-            ->with(Mockery::on(fn (array $params) => $params['body']['size'] === 6))
+            ->with(Mockery::on(fn (array $params) => $params['body']['size'] === 3))
             ->andReturn(['hits' => ['hits' => $hits]]);
 
-        $fragments = $this->service->retrieveProducts('query', [], 2);
+        $fragments = $this->service->retrieveProducts('query', [], 3);
 
-        $this->assertCount(2, $fragments);
-        $this->assertSame(1, $fragments[0]->metadata['product_id']);
-        $this->assertSame(2, $fragments[1]->metadata['product_id']);
-        // Best-scoring chunk of product 1 is the one kept.
-        $this->assertSame('1_ru_0', $fragments[0]->id);
+        $this->assertCount(3, $fragments);
+        $this->assertSame([1, 2, 3], array_map(
+            static fn ($fragment): int => $fragment->metadata['product_id'],
+            $fragments,
+        ));
+        $this->assertSame('1_ru', $fragments[0]->id);
     }
 
-    public function test_retrieve_kb_does_not_dedupe(): void
+    public function test_retrieve_products_drops_hits_below_the_score_threshold(): void
+    {
+        config(['opensearch.distance_threshold' => 0.8]);
+
+        $this->osClient->expects('search')->andReturn(['hits' => ['hits' => [
+            $this->hit('1_ru', 0.95, 1),
+            $this->hit('2_ru', 0.50, 2),
+        ]]]);
+
+        $fragments = $this->service->retrieveProducts('query', [], 5);
+
+        $this->assertCount(1, $fragments);
+        $this->assertSame('1_ru', $fragments[0]->id);
+    }
+
+    public function test_retrieve_kb_returns_every_chunk(): void
     {
         $hits = [
             $this->hit('10_0', 0.9, null, 'kb'),
