@@ -122,12 +122,28 @@ final class RetrievalService implements RetrievalServiceInterface
     }
 
     /**
+     * Minimum score a hit must reach to be kept.
+     *
+     * Only meaningful for normalized hybrid scores; the RRF fallback produces
+     * scores on an incomparable scale (max ≈ 1/61), so no threshold is applied
+     * there — otherwise every result would be discarded silently.
+     */
+    private function minScore(): float
+    {
+        if (! $this->searcher->usesNormalizedScores()) {
+            return 0.0;
+        }
+
+        return (float) config('bot.retrieval.min_score', 0.05);
+    }
+
+    /**
      * @param  list<array{_id:string,_score:float,_source:array<string,mixed>}> $hits
      * @return list<RetrievedFragment>
      */
     private function toFragments(array $hits, string $source): array
     {
-        $minScore = (float) config('opensearch.distance_threshold', 0.3);
+        $minScore = $this->minScore();
 
         $fragments = [];
 

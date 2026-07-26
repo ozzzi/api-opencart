@@ -11,6 +11,7 @@ use Mockery;
 use Mockery\MockInterface;
 use OpenSearch\Client;
 use OpenSearch\Namespaces\SearchPipelineNamespace;
+use RuntimeException;
 use Tests\TestCase;
 
 final class RetrievalServiceTest extends TestCase
@@ -25,7 +26,7 @@ final class RetrievalServiceTest extends TestCase
     {
         parent::setUp();
 
-        config(['opensearch.distance_threshold' => 0.0]);
+        config(['bot.retrieval.min_score' => 0.0]);
 
         $this->embeddingClient = Mockery::mock(EmbeddingClientInterface::class);
         $this->embeddingClient->allows('embed')->andReturn([[0.1, 0.2, 0.3]]);
@@ -69,7 +70,7 @@ final class RetrievalServiceTest extends TestCase
 
     public function test_retrieve_products_drops_hits_below_the_score_threshold(): void
     {
-        config(['opensearch.distance_threshold' => 0.8]);
+        config(['bot.retrieval.min_score' => 0.8]);
 
         $this->osClient->expects('search')->andReturn(['hits' => ['hits' => [
             $this->hit('1_ru', 0.95, 1),
@@ -80,6 +81,57 @@ final class RetrievalServiceTest extends TestCase
 
         $this->assertCount(1, $fragments);
         $this->assertSame('1_ru', $fragments[0]->id);
+    }
+
+    public function test_rrf_fallback_ignores_the_normalized_score_threshold(): void
+    {
+        config(['bot.retrieval.min_score' => 0.8]);
+
+        $osClient = Mockery::mock(Client::class);
+
+        // Pipeline missing -> HybridSearcher falls back to app-side RRF, whose
+        // scores max out around 1/61 and must not be compared to the threshold.
+        $pipeline = Mockery::mock(SearchPipelineNamespace::class);
+        $pipeline->allows('get')->andThrow(new RuntimeException('no such pipeline'));
+        $osClient->allows('searchPipeline')->andReturn($pipeline);
+
+        $osClient->expects('search')->twice()->andReturn(
+            ['hits' => ['hits' => [$this->hit('1_ru', 12.4, 1)]]],
+            ['hits' => ['hits' => [$this->hit('1_ru', 0.87, 1)]]],
+        );
+
+        /** @var EmbeddingClientInterface $embeddingClient */
+        $embeddingClient = $this->embeddingClient;
+
+        $service = new RetrievalService($embeddingClient, new HybridSearcher($osClient));
+
+        $fragments = $service->retrieveProducts('query', [], 3);
+
+        $this->assertCount(1, $fragments);
+        $this->assertLessThan(0.8, $fragments[0]->score);
+    }
+
+    public function test_bm25_query_covers_language_specific_subfields(): void
+    {
+        $captured = [];
+
+        $this->osClient
+            ->expects('search')
+            ->with(Mockery::on(function (array $params) use (&$captured): bool {
+                $captured = $params;
+
+                return true;
+            }))
+            ->andReturn(['hits' => ['hits' => []]]);
+
+        $this->service->retrieveProducts('паракорд', [], 3);
+
+        $fields = $captured['body']['query']['hybrid']['queries'][0]['bool']['must'][0]['multi_match']['fields'];
+
+        $this->assertContains('name.uk^3', $fields);
+        $this->assertContains('name.ru^3', $fields);
+        $this->assertContains('description.uk', $fields);
+        $this->assertContains('category.ru^2', $fields);
     }
 
     public function test_retrieve_kb_returns_every_chunk(): void

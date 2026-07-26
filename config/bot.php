@@ -38,10 +38,18 @@ return [
     |--------------------------------------------------------------------------
     */
 
+    /*
+    | min_score is compared against the normalized hybrid score produced by the
+    | OpenSearch normalization-processor (0…1, weights from config/opensearch.php).
+    | On that scale a document matching only BM25 lands around 0.3 and one matching
+    | only k-NN around 0.7, so anything above ~0.3 silently drops whole result sets.
+    | Keep it low — topK is the real cut-off. It is not applied to the app-side RRF
+    | fallback, whose scores live on an incomparable scale (max ≈ 1/61).
+    */
     'retrieval' => [
         'kb_top_k'       => 5,
         'product_top_k'  => 4,
-        'min_score'      => 0.3,
+        'min_score'      => (float) env('BOT_RETRIEVAL_MIN_SCORE', 0.05),
     ],
 
     /*
