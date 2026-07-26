@@ -69,7 +69,7 @@ final class BotServiceProvider extends ServiceProvider
             ]);
         });
 
-        $this->app->singleton(Client::class, fn () => OpenSearchClientFactory::make());
+        $this->app->scoped(Client::class, fn () => OpenSearchClientFactory::make());
 
         $this->app->scoped(EmbeddingClientInterface::class, function ($app) {
             /** @var BotLlmSettings $llm */
