@@ -61,8 +61,8 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
             $documents[] = [
                 'product_id'  => $productId,
                 'lang'        => $langCode,
-                'name'        => $desc->name,
-                'description' => strip_tags($desc->description),
+                'name'        => $this->plainText($desc->name),
+                'description' => $this->plainText($desc->description),
                 'attributes'  => $this->buildAttributesText($productId, $langId),
                 'category'    => $this->resolvePrimaryCategory($productId, $langId),
                 'price'       => $price,
@@ -104,8 +104,8 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
 
         return [
             'product_id'    => $productId,
-            'name'          => $desc->name,
-            'description'   => strip_tags($desc->description),
+            'name'          => $this->plainText($desc->name),
+            'description'   => $this->plainText($desc->description),
             'price'         => $regularPrice,
             'special_price' => $special,
             'in_stock'      => $product->status === 1 && $product->quantity > 0,
@@ -120,6 +120,23 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Reduce OpenCart rich-text to indexable / promptable plain text.
+     *
+     * OpenCart 2.3 stores markup HTML-encoded (`&lt;p&gt;`, `&quot;`), so a bare
+     * strip_tags() leaves both the markup and entity noise in place — tokens like
+     * "quot", "lt" and "nbsp" then pollute BM25 and the embedding text alike.
+     * Tags are stripped before and after decoding to handle either encoding.
+     */
+    private function plainText(?string $value): string
+    {
+        $text = strip_tags((string) $value);
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = strip_tags($text);
+
+        return mb_trim((string) preg_replace('/[\s\x{00A0}]+/u', ' ', $text));
+    }
 
     private function resolvePrice(OcProduct $product): float
     {
@@ -156,9 +173,9 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
             return '';
         }
 
-        return (string) OcCategoryDescription::where('category_id', $categoryId)
+        return $this->plainText(OcCategoryDescription::where('category_id', $categoryId)
             ->where('language_id', $langId)
-            ->value('name');
+            ->value('name'));
     }
 
     /** @return list<string> */
@@ -175,6 +192,7 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
         return OcCategoryDescription::whereIn('category_id', $categoryIds)
             ->where('language_id', $langId)
             ->pluck('name')
+            ->map($this->plainText(...))
             ->all();
     }
 
@@ -203,7 +221,10 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
                 ->value('name');
 
             if ($name !== null) {
-                $result[] = ['name' => $name, 'value' => $attr->text];
+                $result[] = [
+                    'name'  => $this->plainText($name),
+                    'value' => $this->plainText($attr->text),
+                ];
             }
         }
 
