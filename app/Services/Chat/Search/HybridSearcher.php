@@ -29,9 +29,19 @@ final class HybridSearcher
     /**
      * Text fields queried by BM25.  Covers both kb_index and products_index;
      * OpenSearch silently skips unknown fields, so one list works for all.
+     *
+     * Each field is queried together with its `.ru` / `.uk` hunspell sub-fields
+     * (see IndexSchemas::multiLangTextField) — the root field uses the standard
+     * analyzer and therefore matches word forms literally, which alone would
+     * make "паракорд" miss a document containing only "паракорда".
      */
     private const array TEXT_FIELDS = [
-        'title', 'name', 'content', 'description', 'attributes', 'category',
+        'title^3', 'title.ru^3', 'title.uk^3',
+        'name^3', 'name.ru^3', 'name.uk^3',
+        'category^2', 'category.ru^2', 'category.uk^2',
+        'attributes', 'attributes.ru', 'attributes.uk',
+        'content', 'content.ru', 'content.uk',
+        'description', 'description.ru', 'description.uk',
     ];
     /** @var bool|null null = not yet checked */
     private ?bool $pipelineAvailable = null;
@@ -59,6 +69,18 @@ final class HybridSearcher
         }
 
         return $this->searchWithRrf($index, $queryText, $queryVector, $filters, $topK);
+    }
+
+    /**
+     * Whether the scores returned by search() are normalized to the 0…1 range.
+     *
+     * True when the OpenSearch normalization-processor pipeline is used; false
+     * for the app-side RRF fallback, whose scores top out around 1/(RRF_K + 1)
+     * and must never be compared against a normalized threshold.
+     */
+    public function usesNormalizedScores(): bool
+    {
+        return $this->isPipelineAvailable();
     }
 
     /**

@@ -85,10 +85,9 @@ final class IndexSchemas
                     'name'           => self::multiLangTextField(),
                     'description'    => self::multiLangTextField(),
                     'attributes'     => self::multiLangTextField(),
-                    'category'       => [
-                        'type'   => 'text',
-                        'fields' => ['keyword' => ['type' => 'keyword', 'ignore_above' => 256]],
-                    ],
+                    'category'       => self::multiLangTextField(
+                        ['keyword' => ['type' => 'keyword', 'ignore_above' => 256]],
+                    ),
                     'price'          => ['type' => 'float'],
                     'in_stock'       => ['type' => 'boolean'],
                     'url'            => ['type' => 'keyword'],
@@ -149,11 +148,14 @@ final class IndexSchemas
      *
      * The root field uses the `standard` analyzer for broad matching;
      * `ru` and `uk` sub-fields carry language-specific hunspell stemming so
-     * BM25 relevance improves for each locale.
+     * BM25 relevance improves for each locale.  HybridSearcher queries the root
+     * field together with both sub-fields — adding a sub-field here without
+     * adding it there leaves the analyzer unused.
      *
+     * @param  array<string, mixed> $extraFields  Additional sub-fields, e.g. a `keyword` for filtering.
      * @return array<string, mixed>
      */
-    private static function multiLangTextField(): array
+    private static function multiLangTextField(array $extraFields = []): array
     {
         return [
             'type'     => 'text',
@@ -161,6 +163,7 @@ final class IndexSchemas
             'fields'   => [
                 'ru' => ['type' => 'text', 'analyzer' => 'russian_analyzer'],
                 'uk' => ['type' => 'text', 'analyzer' => 'ukrainian_analyzer'],
+                ...$extraFields,
             ],
         ];
     }
