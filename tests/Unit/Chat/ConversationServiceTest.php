@@ -155,6 +155,30 @@ final class ConversationServiceTest extends TestCase
         ]);
     }
 
+    public function test_add_message_round_trips_structured_parts(): void
+    {
+        $session = ChatSession::factory()->create();
+        $parts = [
+            ['type' => 'text', 'text' => 'Ось варіанти:'],
+            ['type' => 'products', 'items' => [['id' => 42, 'name' => 'Acer Aspire 5']]],
+        ];
+
+        $message = $this->service->addMessage($session, 'assistant', 'Ось варіанти:', [
+            'parts' => $parts,
+        ]);
+
+        $this->assertSame($parts, $message->fresh()->parts);
+    }
+
+    public function test_add_message_leaves_parts_null_when_not_supplied(): void
+    {
+        $session = ChatSession::factory()->create();
+
+        $message = $this->service->addMessage($session, 'user', 'Привіт');
+
+        $this->assertNull($message->fresh()->parts);
+    }
+
     // ── buildContextWindow ────────────────────────────────────────────────────
 
     public function test_build_context_window_returns_llm_chat_messages(): void

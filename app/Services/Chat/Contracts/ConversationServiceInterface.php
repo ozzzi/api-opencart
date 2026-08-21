@@ -20,6 +20,7 @@ interface ConversationServiceInterface
      *     tokens_used?: int,
      *     latency_ms?: int,
      *     fallback_used?: bool,
+     *     parts?: list<array<string, mixed>>,
      *     tool_calls?: array<mixed>,
      *     tool_name?: string,
      *     tool_call_id?: string,

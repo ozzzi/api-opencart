@@ -20,7 +20,9 @@ use App\Services\Chat\DTO\RateLimitResult;
 use App\Services\Chat\DTO\StreamChunkType;
 use App\Services\Chat\DTO\ToolCall;
 use App\Services\Chat\DTO\UsageStats;
+use App\Services\Chat\DTO\Blocks\ProductsBlock;
 use App\Services\Chat\LlmOrchestrator;
+use App\Services\Chat\Presentation\BlockCollector;
 use App\Settings\BotLlmSettings;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
@@ -38,7 +40,15 @@ final class LlmOrchestratorTest extends TestCase
     private MockInterface $shopAssistant;
     private MockInterface $rateLimiter;
 
+    /** Real collector, not a mock — it is a plain object with no dependencies. */
+    private BlockCollector $blockCollector;
+
     private BotLlmSettings $llmSettings;
+
+    private ?string $persistedContent = null;
+
+    /** @var list<array<string, mixed>>|null */
+    private ?array $persistedParts = null;
 
     protected function setUp(): void
     {
@@ -55,6 +65,7 @@ final class LlmOrchestratorTest extends TestCase
         $this->costTracker = Mockery::mock(CostTrackerInterface::class);
         $this->shopAssistant = Mockery::mock(ShopAssistantInterface::class);
         $this->rateLimiter = Mockery::mock(RateLimiterInterface::class);
+        $this->blockCollector = new BlockCollector;
 
         $this->llmSettings = (new ReflectionClass(BotLlmSettings::class))->newInstanceWithoutConstructor();
         $this->llmSettings->primaryModel = 'gpt-4o-mini';
@@ -287,7 +298,190 @@ final class LlmOrchestratorTest extends TestCase
         $this->make()->processMessage($this->makeSession(), 'Hi');
     }
 
+    public function test_start_chunk_carries_the_persisted_user_message_id(): void
+    {
+        $this->allowPassThrough();
+        $this->llmClient->allows('complete')->andReturn($this->makeResponse());
+
+        $this->conversationService->shouldReceive('addMessage')
+            ->andReturnUsing(fn (...$args): ChatMessage => $this->stubMessage(
+                ($args[1] ?? null) === 'user' ? 777 : 1,
+            ));
+
+        $chunks = iterator_to_array(
+            $this->make()->processMessage($this->makeSession(), 'Hi', stream: true),
+            false,
+        );
+
+        $this->assertSame(StreamChunkType::Start, $chunks[0]->type);
+        $this->assertSame(777, $chunks[0]->messageId);
+    }
+
+    // ── structured parts ──────────────────────────────────────────────────────
+
+    public function test_interim_content_alongside_tool_calls_is_yielded_as_text(): void
+    {
+        $this->allowPassThrough();
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse('Дивлюся, що є у вашому бюджеті…'),
+            $this->makeResponse('Обидва тягнуть навчальні задачі.'),
+        );
+        $this->toolRegistry->allows('execute')->andReturn('{"shown":true}');
+
+        $chunks = iterator_to_array(
+            $this->make()->processMessage($this->makeSession(), 'Ноутбук до 30000', stream: true),
+            false,
+        );
+
+        $texts = array_values(array_map(
+            static fn ($chunk) => $chunk->content,
+            array_filter($chunks, static fn ($chunk) => $chunk->type === StreamChunkType::Text),
+        ));
+
+        $this->assertSame(
+            ['Дивлюся, що є у вашому бюджеті…', 'Обидва тягнуть навчальні задачі.'],
+            $texts,
+        );
+    }
+
+    public function test_block_chunk_is_yielded_between_tool_running_and_tool_done(): void
+    {
+        $this->allowPassThrough();
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse(),
+            $this->makeResponse(),
+        );
+        $this->pushBlockOnToolExecution();
+
+        $chunks = iterator_to_array(
+            $this->make()->processMessage($this->makeSession(), 'Hi', stream: true),
+            false,
+        );
+
+        $types = array_map(static fn ($chunk) => $chunk->type, $chunks);
+
+        $running = array_search(StreamChunkType::ToolRunning, $types, strict: true);
+        $block = array_search(StreamChunkType::Block, $types, strict: true);
+        $done = array_search(StreamChunkType::ToolDone, $types, strict: true);
+
+        $this->assertIsInt($block, 'expected a Block chunk in the stream');
+        $this->assertGreaterThan($running, $block);
+        $this->assertLessThan($done, $block);
+    }
+
+    public function test_parts_are_persisted_in_stream_order(): void
+    {
+        $this->allowPassThrough();
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse('Ось варіанти:'),
+            $this->makeResponse('Перший помітно легший.'),
+        );
+        $this->pushBlockOnToolExecution();
+
+        $this->capturePersistedAssistantMessage();
+
+        iterator_to_array(
+            $this->make()->processMessage($this->makeSession(), 'Hi', stream: true),
+            false,
+        );
+
+        $this->assertSame(
+            ['text', 'products', 'text'],
+            array_column($this->persistedParts, 'type'),
+        );
+        $this->assertSame('Ось варіанти:', $this->persistedParts[0]['text']);
+        $this->assertSame('Перший помітно легший.', $this->persistedParts[2]['text']);
+    }
+
+    public function test_persisted_content_holds_text_parts_only(): void
+    {
+        $this->allowPassThrough();
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse('Ось варіанти:'),
+            $this->makeResponse('Перший помітно легший.'),
+        );
+        $this->pushBlockOnToolExecution();
+
+        $this->capturePersistedAssistantMessage();
+
+        iterator_to_array(
+            $this->make()->processMessage($this->makeSession(), 'Hi', stream: true),
+            false,
+        );
+
+        $this->assertSame("Ось варіанти:\n\nПерший помітно легший.", $this->persistedContent);
+    }
+
+    public function test_non_streaming_path_persists_parts_too(): void
+    {
+        $this->allowPassThrough();
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Готово.'),
+        );
+        $this->pushBlockOnToolExecution();
+
+        $this->capturePersistedAssistantMessage();
+
+        $this->make()->processMessage($this->makeSession(), 'Hi');
+
+        $this->assertSame(['products', 'text'], array_column($this->persistedParts, 'type'));
+    }
+
+    public function test_blocks_left_over_from_a_previous_run_are_discarded(): void
+    {
+        $this->allowPassThrough();
+        $this->llmClient->allows('complete')->andReturn($this->makeResponse('Готово.'));
+
+        // Residue from a run that threw mid-loop.
+        $this->blockCollector->push(new ProductsBlock([]));
+
+        $this->capturePersistedAssistantMessage();
+
+        $this->make()->processMessage($this->makeSession(), 'Hi');
+
+        $this->assertSame(['text'], array_column($this->persistedParts, 'type'));
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Records the final assistant addMessage() call — the only one carrying a
+     * `parts` option — into $persistedContent / $persistedParts.
+     */
+    private function capturePersistedAssistantMessage(): void
+    {
+        $this->conversationService->shouldReceive('addMessage')
+            ->andReturnUsing(function (...$args): ChatMessage {
+                if (($args[1] ?? null) === 'assistant' && isset($args[3]['parts'])) {
+                    $this->persistedContent = $args[2];
+                    $this->persistedParts = $args[3]['parts'];
+                }
+
+                return $this->stubMessage();
+            });
+    }
+
+    /** Makes the tool registry behave like a presentational tool. */
+    private function pushBlockOnToolExecution(): void
+    {
+        $this->toolRegistry->allows('execute')->andReturnUsing(function (): string {
+            $this->blockCollector->push(new ProductsBlock([]));
+
+            return '{"shown":true}';
+        });
+    }
+
+    private function makeToolCallResponse(?string $content = null): LlmResponse
+    {
+        return new LlmResponse(
+            content: $content,
+            toolCalls: [new ToolCall('tc-1', 'show_products', ['product_ids' => [42]])],
+            finishReason: 'tool_calls',
+            usage: new UsageStats(10, 5, 0.0),
+        );
+    }
+
 
     private function make(): LlmOrchestrator
     {
@@ -298,6 +492,7 @@ final class LlmOrchestratorTest extends TestCase
             costTracker: $this->costTracker,
             shopAssistant: $this->shopAssistant,
             rateLimiter: $this->rateLimiter,
+            blockCollector: $this->blockCollector,
             llmSettings: $this->llmSettings,
         );
     }

@@ -18,7 +18,7 @@ interface OpenCartCatalogInterface
      * Returns live product details for the assistant tools.
      * Returns null when the product does not exist.
      *
-     * @return array{product_id:int,name:string,description:string,price:float,special_price:float|null,in_stock:bool,quantity:int,categories:list<string>,attributes:list<array{name:string,value:string}>,url:string,image:string}|null
+     * @return array{product_id:int,name:string,description:string,price:float,special_price:float|null,in_stock:bool,quantity:int,stock_status_id:int,availability:string,categories:list<string>,attributes:list<array{name:string,value:string}>,url:string,image:string}|null
      */
     public function getProductDetails(int $productId, string $lang = 'ru'): ?array;
 }

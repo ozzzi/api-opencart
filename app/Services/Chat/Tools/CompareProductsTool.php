@@ -6,12 +6,16 @@ namespace App\Services\Chat\Tools;
 
 use App\Models\Bot\ChatSession;
 use App\Services\Chat\Contracts\OpenCartCatalogInterface;
+use App\Services\Chat\Presentation\BlockCollector;
+use App\Services\Chat\Presentation\ProductCardMapper;
 use App\Services\Chat\Tools\Contracts\ToolInterface;
 
 final class CompareProductsTool implements ToolInterface
 {
     public function __construct(
         private readonly OpenCartCatalogInterface $catalog,
+        private readonly ProductCardMapper $mapper,
+        private readonly BlockCollector $blocks,
     ) {
     }
 
@@ -22,9 +26,10 @@ final class CompareProductsTool implements ToolInterface
 
     public function getDescription(): string
     {
-        return 'Compare 2–4 products side by side: live price, availability, and all attributes. '
-            .'Returns a structured comparison table so you can explain differences and recommend '
-            .'the best option for the customer\'s needs.';
+        return 'Compare 2–4 products side by side. The store renders the comparison table for the '
+            .'customer with live price, availability and characteristics, so do NOT draw a table or '
+            .'restate prices in your reply — write only the conclusion: which product suits the '
+            .'customer better and why.';
     }
 
     /** @return array<string, mixed> */
@@ -40,11 +45,6 @@ final class CompareProductsTool implements ToolInterface
                     'maxItems'    => 4,
                     'description' => 'List of 2–4 product IDs to compare.',
                 ],
-                'lang' => [
-                    'type'        => 'string',
-                    'enum'        => ['ru', 'uk'],
-                    'description' => 'Language for product names and attributes. Defaults to session language.',
-                ],
             ],
             'required' => ['product_ids'],
         ];
@@ -57,7 +57,7 @@ final class CompareProductsTool implements ToolInterface
     {
         /** @var list<int> $productIds */
         $productIds = array_map('intval', (array) $arguments['product_ids']);
-        $lang = isset($arguments['lang']) ? (string) $arguments['lang'] : ($session->language ?? 'ru');
+        $lang = (string) config('opencart.card_language', 'uk');
 
         $products = [];
         $notFound = [];
@@ -79,21 +79,28 @@ final class CompareProductsTool implements ToolInterface
             );
         }
 
+        $this->blocks->push($this->mapper->toComparisonBlock($products));
+
+        // The attribute table stays in the model's payload — it needs the values to
+        // reason ("the Acer is lighter"), and that is argumentation, not the kind of
+        // fact-restating the card is meant to own. Price and URL are dropped: those
+        // are card-only, and echoing them is how prose drifts out of sync.
         return json_encode(
             [
                 'found'        => true,
                 'products'     => $this->buildProductSummaries($products),
                 'comparison'   => $this->buildAttributeComparison($products),
                 'not_found_ids' => $notFound,
+                'note'         => 'The comparison table is already displayed to the customer. '
+                    .'Do not restate prices or draw a table; give the verdict only.',
             ],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
         );
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     /**
-     * Build a concise summary for each product (identity + pricing + stock).
+     * Identity plus stock, which the model needs in order to steer away from an
+     * unavailable option.
      *
      * @param  list<array<string, mixed>>  $products
      * @return list<array<string, mixed>>
@@ -102,12 +109,9 @@ final class CompareProductsTool implements ToolInterface
     {
         return array_map(static function (array $p): array {
             return [
-                'product_id'    => $p['product_id'],
-                'name'          => $p['name'],
-                'price'         => $p['price'],
-                'special_price' => $p['special_price'],
-                'in_stock'      => $p['in_stock'],
-                'url'           => $p['url'],
+                'product_id' => $p['product_id'],
+                'name'       => $p['name'],
+                'in_stock'   => $p['in_stock'],
             ];
         }, $products);
     }

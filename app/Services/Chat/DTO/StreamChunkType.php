@@ -11,6 +11,7 @@ enum StreamChunkType: string
     case ToolCallDelta = 'tool_call_delta';
     case ToolRunning = 'tool_running';
     case ToolDone = 'tool_done';
+    case Block = 'block';
     case Done = 'done';
     case Heartbeat = 'heartbeat';
 }

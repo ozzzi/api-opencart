@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $session_id
  * @property string $role
  * @property string|null $content
+ * @property array<int, array<string, mixed>>|null $parts
  * @property array|null $tool_calls
  * @property string|null $tool_name
  * @property string|null $tool_call_id
@@ -24,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property int|null $latency_ms
  * @property bool $fallback_used
  * @property Carbon $created_at
+ * @property-read MessageFeedback|null $feedback
  */
 final class ChatMessage extends Model
 {
@@ -38,6 +40,7 @@ final class ChatMessage extends Model
         'session_id',
         'role',
         'content',
+        'parts',
         'tool_calls',
         'tool_name',
         'tool_call_id',
@@ -67,6 +70,7 @@ final class ChatMessage extends Model
     protected function casts(): array
     {
         return [
+            'parts' => 'array',
             'tool_calls' => 'array',
             'fallback_used' => 'boolean',
             'created_at' => 'datetime',

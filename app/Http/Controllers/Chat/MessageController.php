@@ -24,6 +24,7 @@ final class MessageController extends Controller
         'search_knowledge_base' => 'Ищу информацию…',
         'search_products'       => 'Ищу товары…',
         'get_product_details'   => 'Уточняю детали…',
+        'show_products'         => 'Готовлю карточки…',
         'compare_products'      => 'Сравниваю товары…',
         'create_lead'           => 'Оформляю заявку…',
         'get_order_status'      => 'Проверяю заказ…',
@@ -50,7 +51,10 @@ final class MessageController extends Controller
                     $event = match ($chunk->type) {
                         StreamChunkType::Start => new StreamedEvent(
                             event: 'start',
-                            data: '{}',
+                            data: json_encode(
+                                ['user_message_id' => $chunk->messageId],
+                                JSON_UNESCAPED_UNICODE,
+                            ),
                         ),
                         StreamChunkType::Text => new StreamedEvent(
                             event: 'delta',
@@ -70,6 +74,13 @@ final class MessageController extends Controller
                                 'name'   => $chunk->toolName,
                                 'status' => 'done',
                             ], JSON_UNESCAPED_UNICODE),
+                        ),
+                        StreamChunkType::Block => new StreamedEvent(
+                            event: 'block',
+                            data: json_encode(
+                                ['block' => $chunk->block?->toArray()],
+                                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+                            ),
                         ),
                         StreamChunkType::Done => new StreamedEvent(
                             event: 'done',

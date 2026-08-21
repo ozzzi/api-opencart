@@ -11,6 +11,7 @@ use App\Models\OpenCart\OcProductAttribute;
 use App\Models\OpenCart\OcProductDescription;
 use App\Models\OpenCart\OcProductSpecial;
 use App\Models\OpenCart\OcProductToCategory;
+use App\Models\OpenCart\OcStockStatus;
 use App\Models\OpenCart\OcUrlAlias;
 use App\Services\Chat\Contracts\OpenCartCatalogInterface;
 
@@ -26,6 +27,15 @@ use App\Services\Chat\Contracts\OpenCartCatalogInterface;
  */
 final class OpenCartCatalog implements OpenCartCatalogInterface
 {
+    /**
+     * Out-of-stock labels already looked up, keyed "{stock_status_id}:{language_id}".
+     * compare_products resolves 2–4 products per call and would otherwise re-query
+     * `stock_status` for each of them.
+     *
+     * @var array<string, string>
+     */
+    private array $availabilityCache = [];
+
     /**
      * Returns one index document per configured language.
      * Returns an empty array if the product does not exist.
@@ -79,7 +89,7 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
      * Returns live product details for the assistant tools.
      * Returns null when the product does not exist.
      *
-     * @return array{product_id:int,name:string,description:string,price:float,special_price:float|null,in_stock:bool,quantity:int,categories:list<string>,attributes:list<array{name:string,value:string}>,url:string,image:string}|null
+     * @return array{product_id:int,name:string,description:string,price:float,special_price:float|null,in_stock:bool,quantity:int,stock_status_id:int,availability:string,categories:list<string>,attributes:list<array{name:string,value:string}>,url:string,image:string}|null
      */
     public function getProductDetails(int $productId, string $lang = 'ru'): ?array
     {
@@ -110,6 +120,8 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
             'special_price' => $special,
             'in_stock'      => $product->status === 1 && $product->quantity > 0,
             'quantity'      => (int) $product->quantity,
+            'stock_status_id' => (int) $product->stock_status_id,
+            'availability'  => $this->resolveAvailability($product, $langId),
             'categories'    => $this->resolveCategoryNames($productId, $langId),
             'attributes'    => $this->buildAttributesList($productId, $langId),
             'url'           => $this->resolveUrl($productId),
@@ -162,6 +174,21 @@ final class OpenCartCatalog implements OpenCartCatalogInterface
         }
 
         return $storeUrl.'/index.php?route=product/product&product_id='.$productId;
+    }
+
+    private function resolveAvailability(OcProduct $product, int $langId): string
+    {
+        if ($product->status === 1 && $product->quantity > 0) {
+            return (string) config('opencart.availability.in_stock');
+        }
+
+        $key = "{$product->stock_status_id}:{$langId}";
+
+        return $this->availabilityCache[$key] ??= $this->plainText(
+            OcStockStatus::where('stock_status_id', $product->stock_status_id)
+                ->where('language_id', $langId)
+                ->value('name'),
+        );
     }
 
     private function resolvePrimaryCategory(int $productId, int $langId): string

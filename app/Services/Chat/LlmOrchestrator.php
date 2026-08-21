@@ -21,6 +21,8 @@ use App\Services\Chat\DTO\LlmResponse;
 use App\Services\Chat\DTO\StreamChunk;
 use App\Services\Chat\DTO\StreamChunkType;
 use App\Services\Chat\DTO\ToolCall;
+use App\Services\Chat\Presentation\BlockCollector;
+use App\Services\Chat\Presentation\PartsAccumulator;
 use App\Settings\BotLlmSettings;
 use Generator;
 
@@ -35,6 +37,7 @@ final class LlmOrchestrator
         private readonly CostTrackerInterface $costTracker,
         private readonly ShopAssistantInterface $shopAssistant,
         private readonly RateLimiterInterface $rateLimiter,
+        private readonly BlockCollector $blockCollector,
         private readonly BotLlmSettings $llmSettings,
     ) {
     }
@@ -76,6 +79,9 @@ final class LlmOrchestrator
             );
         }
 
+        $this->blockCollector->reset();
+        $parts = new PartsAccumulator();
+
         $this->conversationService->addMessage($session, 'user', $userMessage);
 
         // 5 + 6. Build context window + prepend system prompt
@@ -89,18 +95,25 @@ final class LlmOrchestrator
 
         // 7. Tool-call loop
         $startTime = hrtime(true);
-        $finalResponse = $this->runToolLoop($session, $messages);
+        $finalResponse = $this->runToolLoop($session, $messages, $parts);
         $latencyMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
+
+        if ($finalResponse->content !== null && $finalResponse->content !== '') {
+            $parts->appendText($finalResponse->content);
+        }
+
+        $assistantParts = $parts->finish();
 
         // Persist final assistant message
         $assistantMessage = $this->conversationService->addMessage(
             $session,
             'assistant',
-            $finalResponse->content ?? '',
+            $parts->textContent(),
             [
                 'model' => $this->llmClient->getModel(),
                 'tokens_used' => $finalResponse->usage->promptTokens + $finalResponse->usage->completionTokens,
                 'latency_ms' => $latencyMs,
+                'parts' => $assistantParts,
             ],
         );
 
@@ -155,11 +168,15 @@ final class LlmOrchestrator
             );
         }
 
-        // 4. Persist user message
-        $this->conversationService->addMessage($session, 'user', $userMessage);
+        $this->blockCollector->reset();
+        $parts = new PartsAccumulator();
 
-        // Signal stream start
-        yield new StreamChunk(StreamChunkType::Start);
+        // 4. Persist user message
+        $userChatMessage = $this->conversationService->addMessage($session, 'user', $userMessage);
+
+        // Signal stream start. The widget needs the user message's id up front so it
+        // can reconcile the optimistic bubble it already rendered.
+        yield new StreamChunk(StreamChunkType::Start, messageId: $userChatMessage->id);
 
         // 5+6. Build context window + system prompt
         $messages = [
@@ -194,9 +211,20 @@ final class LlmOrchestrator
                 break;
             }
 
+            // Prose the model wrote before reaching for a tool. OpenAI populates
+            // `content` alongside tool_calls, and dropping it used to collapse every
+            // reply into one trailing text part — the blocks would all land first.
+            $interimContent = $response->content;
+
+            if ($interimContent !== null && $interimContent !== '') {
+                $parts->appendText($interimContent);
+
+                yield new StreamChunk(StreamChunkType::Text, content: $interimContent);
+            }
+
             $messages[] = new LlmChatMessage(
                 role: 'assistant',
-                content: null,
+                content: $interimContent,
                 toolCalls: $response->toolCalls,
             );
 
@@ -210,6 +238,14 @@ final class LlmOrchestrator
                     $toolCall->arguments,
                     $session,
                 );
+
+                // Drain per tool, not per iteration, so blocks stay in the order the
+                // tools produced them and land inside their own tool's activity window.
+                foreach ($this->blockCollector->drain() as $block) {
+                    $parts->pushBlock($block);
+
+                    yield new StreamChunk(StreamChunkType::Block, block: $block);
+                }
 
                 $messages[] = new LlmChatMessage(
                     role: 'tool',
@@ -237,15 +273,22 @@ final class LlmOrchestrator
 
         $latencyMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
 
+        if ($finalResponse->content !== null && $finalResponse->content !== '') {
+            $parts->appendText($finalResponse->content);
+        }
+
+        $assistantParts = $parts->finish();
+
         // Persist final assistant message
         $assistantMessage = $this->conversationService->addMessage(
             $session,
             'assistant',
-            $finalResponse->content ?? '',
+            $parts->textContent(),
             [
                 'model' => $this->llmClient->getModel(),
                 'tokens_used' => $finalResponse->usage->promptTokens + $finalResponse->usage->completionTokens,
                 'latency_ms' => $latencyMs,
+                'parts' => $assistantParts,
             ],
         );
 
@@ -280,9 +323,12 @@ final class LlmOrchestrator
      * Runs the synchronous tool-call loop until the model stops requesting tools
      * or MAX_TOOL_ITERATIONS is reached.
      *
+     * Builds the same ordered parts as the streaming path — the only difference is
+     * that nothing is yielded along the way.
+     *
      * @param array<LlmChatMessage> $messages
      */
-    private function runToolLoop(ChatSession $session, array $messages): LlmResponse
+    private function runToolLoop(ChatSession $session, array $messages, PartsAccumulator $parts): LlmResponse
     {
         for ($i = 0; $i < self::MAX_TOOL_ITERATIONS; $i++) {
             $request = new LlmRequest(
@@ -298,10 +344,17 @@ final class LlmOrchestrator
                 return $response;
             }
 
-            // Append assistant tool-call message (with no text content) to context
+            // Prose written before reaching for a tool — see the streaming path.
+            $interimContent = $response->content;
+
+            if ($interimContent !== null && $interimContent !== '') {
+                $parts->appendText($interimContent);
+            }
+
+            // Append the assistant tool-call message to context
             $messages[] = new LlmChatMessage(
                 role: 'assistant',
-                content: null,
+                content: $interimContent,
                 toolCalls: $response->toolCalls,
             );
 
@@ -315,6 +368,10 @@ final class LlmOrchestrator
                     $toolCall->arguments,
                     $session,
                 );
+
+                foreach ($this->blockCollector->drain() as $block) {
+                    $parts->pushBlock($block);
+                }
 
                 $messages[] = new LlmChatMessage(
                     role: 'tool',

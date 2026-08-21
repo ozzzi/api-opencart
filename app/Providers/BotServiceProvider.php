@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\Bot\KnowledgeBaseArticle;
+use App\Services\Chat\Catalog\Contracts\PriceFormatterInterface;
 use App\Services\Chat\Catalog\OpenCartCatalog;
+use App\Services\Chat\Catalog\OpenCartPriceFormatter;
+use App\Services\Chat\Catalog\ProductImageUrlBuilder;
+use App\Services\Chat\Presentation\BlockCollector;
+use App\Services\Chat\Presentation\ProductCardMapper;
 use App\Observers\KnowledgeBaseArticleObserver;
 use App\Services\Chat\CircuitBreaker\CircuitBreaker;
 use App\Services\Chat\CircuitBreaker\CircuitBreakerInterface;
@@ -47,6 +52,7 @@ use App\Services\Chat\Tools\CreateLeadTool;
 use App\Services\Chat\Tools\GetProductDetailsTool;
 use App\Services\Chat\Tools\SearchKnowledgeBaseTool;
 use App\Services\Chat\Tools\SearchProductsTool;
+use App\Services\Chat\Tools\ShowProductsTool;
 use App\Services\Chat\Tools\ToolRegistry;
 use App\Settings\BotLlmSettings;
 use App\Settings\BotRateLimitSettings;
@@ -96,6 +102,13 @@ final class BotServiceProvider extends ServiceProvider
 
         $this->app->singleton(OpenCartCatalog::class);
         $this->app->alias(OpenCartCatalog::class, OpenCartCatalogInterface::class);
+
+        $this->app->singleton(PriceFormatterInterface::class, OpenCartPriceFormatter::class);
+        $this->app->singleton(ProductImageUrlBuilder::class);
+        $this->app->singleton(ProductCardMapper::class);
+
+        // Must be a singleton, not scoped — see BlockCollector's class docblock.
+        $this->app->singleton(BlockCollector::class);
 
         $this->app->singleton(OpenSearchIndexer::class);
         $this->app->singleton(HybridSearcher::class);
@@ -153,6 +166,7 @@ final class BotServiceProvider extends ServiceProvider
                 $app->make(SearchKnowledgeBaseTool::class),
                 $app->make(SearchProductsTool::class),
                 $app->make(GetProductDetailsTool::class),
+                $app->make(ShowProductsTool::class),
                 $app->make(CompareProductsTool::class),
                 $app->make(CreateLeadTool::class),
             ]);
