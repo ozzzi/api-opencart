@@ -58,7 +58,6 @@ final class RetrievalService implements RetrievalServiceInterface
      *
      * Supported $filters keys:
      *   lang         (string)  — defaults to 'ru'
-     *   category     (string)  — keyword match
      *   price_min    (float)   — range gte
      *   price_max    (float)   — range lte
      *   in_stock     (bool)    — always forced to true; key kept for explicitness
@@ -76,10 +75,6 @@ final class RetrievalService implements RetrievalServiceInterface
 
         if (isset($filters['lang'])) {
             $osFilters[] = ['term' => ['lang' => (string) $filters['lang']]];
-        }
-
-        if (isset($filters['category'])) {
-            $osFilters[] = ['term' => ['category.keyword' => (string) $filters['category']]];
         }
 
         $rangeFilter = [];

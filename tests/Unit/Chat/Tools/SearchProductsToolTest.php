@@ -48,7 +48,6 @@ final class SearchProductsToolTest extends TestCase
     {
         $properties = $this->tool->getParameterSchema()['properties'];
 
-        $this->assertArrayHasKey('category', $properties);
         $this->assertArrayHasKey('price_min', $properties);
         $this->assertArrayHasKey('price_max', $properties);
         $this->assertArrayHasKey('in_stock', $properties);
@@ -119,21 +118,6 @@ final class SearchProductsToolTest extends TestCase
             ->andReturn([]);
 
         $this->tool->execute(['query' => 'ноутбук'], $this->makeSession('uk'));
-    }
-
-    public function test_execute_passes_category_filter(): void
-    {
-        $this->retrieval
-            ->expects('retrieveProducts')
-            ->withArgs(function (string $query, array $filters): bool {
-                return ($filters['category'] ?? '') === 'Смартфони';
-            })
-            ->andReturn([]);
-
-        $this->tool->execute(
-            ['query' => 'телефон', 'category' => 'Смартфони'],
-            $this->makeSession('uk'),
-        );
     }
 
     public function test_execute_passes_price_range_filters(): void

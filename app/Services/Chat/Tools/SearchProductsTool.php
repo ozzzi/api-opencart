@@ -23,7 +23,7 @@ final class SearchProductsTool implements ToolInterface
     public function getDescription(): string
     {
         return 'Search the product catalog for items matching a user query. '
-            .'Supports optional filters for price range, category, and stock availability. '
+            .'Supports optional filters for price range and stock availability. '
             .'Returns 2–4 matching products with name, price, availability, and a direct URL. '
             .'Always use this tool before recommending any product.';
     }
@@ -37,10 +37,6 @@ final class SearchProductsTool implements ToolInterface
                 'query' => [
                     'type'        => 'string',
                     'description' => 'Product search query (e.g. "laptop for students", "wireless headphones").',
-                ],
-                'category' => [
-                    'type'        => 'string',
-                    'description' => 'Filter by product category name (e.g. "Ноутбуки", "Смартфоны").',
                 ],
                 'price_min' => [
                     'type'        => 'number',
@@ -76,10 +72,6 @@ final class SearchProductsTool implements ToolInterface
         $limit = isset($arguments['limit']) ? (int) $arguments['limit'] : 4;
 
         $filters = ['lang' => $session->language ?? 'ru'];
-
-        if (isset($arguments['category'])) {
-            $filters['category'] = (string) $arguments['category'];
-        }
 
         if (isset($arguments['price_min'])) {
             $filters['price_min'] = (float) $arguments['price_min'];
