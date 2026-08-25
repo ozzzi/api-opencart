@@ -134,6 +134,30 @@ final class RetrievalServiceTest extends TestCase
         $this->assertContains('category.ru^2', $fields);
     }
 
+    /**
+     * Visitors write in Russian and Ukrainian and we never pass a language through,
+     * so a lang term would silently hide half of the knowledge base.
+     */
+    public function test_retrieve_kb_sends_no_language_filter(): void
+    {
+        $captured = [];
+
+        $this->osClient
+            ->expects('search')
+            ->with(Mockery::on(function (array $params) use (&$captured): bool {
+                $captured = $params;
+
+                return true;
+            }))
+            ->andReturn(['hits' => ['hits' => []]]);
+
+        $this->service->retrieveKb('сколько стоит доставка', 5);
+
+        $filters = json_encode($captured['body']['query']['hybrid']['queries'] ?? $captured['body'], JSON_UNESCAPED_UNICODE);
+
+        $this->assertStringNotContainsString('"lang"', (string) $filters);
+    }
+
     public function test_retrieve_kb_returns_every_chunk(): void
     {
         $hits = [
@@ -145,7 +169,7 @@ final class RetrievalServiceTest extends TestCase
             ->expects('search')
             ->andReturn(['hits' => ['hits' => $hits]]);
 
-        $fragments = $this->service->retrieveKb('query', 'ru', 5);
+        $fragments = $this->service->retrieveKb('query', 5);
 
         $this->assertCount(2, $fragments);
     }

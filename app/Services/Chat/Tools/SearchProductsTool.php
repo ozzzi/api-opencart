@@ -71,7 +71,7 @@ final class SearchProductsTool implements ToolInterface
         $query = (string) $arguments['query'];
         $limit = isset($arguments['limit']) ? (int) $arguments['limit'] : 4;
 
-        $filters = ['lang' => $session->language ?? 'ru'];
+        $filters = [];
 
         if (isset($arguments['price_min'])) {
             $filters['price_min'] = (float) $arguments['price_min'];

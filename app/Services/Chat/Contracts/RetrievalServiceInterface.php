@@ -13,7 +13,7 @@ interface RetrievalServiceInterface
      *
      * @return list<RetrievedFragment>
      */
-    public function retrieveKb(string $query, string $lang = 'ru', int $topK = 5): array;
+    public function retrieveKb(string $query, int $topK = 5): array;
 
     /**
      * Retrieve products relevant to a query.

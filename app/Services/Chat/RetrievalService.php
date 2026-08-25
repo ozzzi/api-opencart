@@ -27,16 +27,15 @@ final class RetrievalService implements RetrievalServiceInterface
     /**
      * Retrieve KB fragments relevant to a query.
      *
-     * Filters: lang = $lang, is_active = true.
+     * Filters: is_active = true.
      *
      * @return list<RetrievedFragment>
      */
-    public function retrieveKb(string $query, string $lang = 'ru', int $topK = 5): array
+    public function retrieveKb(string $query, int $topK = 5): array
     {
         $vector = $this->embed($query);
 
         $filters = [
-            ['term' => ['lang'      => $lang]],
             ['term' => ['is_active' => true]],
         ];
 
@@ -57,7 +56,6 @@ final class RetrievalService implements RetrievalServiceInterface
      * Always filters in_stock = true so out-of-stock items are never suggested.
      *
      * Supported $filters keys:
-     *   lang         (string)  — defaults to 'ru'
      *   price_min    (float)   — range gte
      *   price_max    (float)   — range lte
      *   in_stock     (bool)    — always forced to true; key kept for explicitness
@@ -72,10 +70,6 @@ final class RetrievalService implements RetrievalServiceInterface
         $osFilters = [
             ['term' => ['in_stock' => true]],
         ];
-
-        if (isset($filters['lang'])) {
-            $osFilters[] = ['term' => ['lang' => (string) $filters['lang']]];
-        }
 
         $rangeFilter = [];
 

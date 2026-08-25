@@ -44,19 +44,23 @@ final class SearchKnowledgeBaseToolTest extends TestCase
         $this->assertContains('query', $schema['required']);
     }
 
-    public function test_schema_marks_lang_and_top_k_optional(): void
+    public function test_schema_marks_top_k_optional(): void
     {
         $schema = $this->tool->getParameterSchema();
 
-        $this->assertNotContains('lang', $schema['required']);
         $this->assertNotContains('top_k', $schema['required']);
     }
 
-    public function test_schema_lang_enum_contains_ru_and_uk(): void
+    /**
+     * The knowledge base holds both Russian and Ukrainian articles and the query
+     * language is never passed, so the model must not be able to narrow the search
+     * to one language and hide the other half of the corpus.
+     */
+    public function test_schema_exposes_no_language_parameter(): void
     {
         $schema = $this->tool->getParameterSchema();
 
-        $this->assertSame(['ru', 'uk'], $schema['properties']['lang']['enum']);
+        $this->assertArrayNotHasKey('lang', $schema['properties']);
     }
 
     // ── execute: no results ───────────────────────────────────────────────────
@@ -65,7 +69,7 @@ final class SearchKnowledgeBaseToolTest extends TestCase
     {
         $this->retrieval
             ->expects('retrieveKb')
-            ->with('доставка', 'ru', 5)
+            ->with('доставка', 5)
             ->andReturn([]);
 
         $result = json_decode(
@@ -108,25 +112,24 @@ final class SearchKnowledgeBaseToolTest extends TestCase
         $this->assertSame(0.92, $item['score']);
     }
 
-    // ── execute: uses session language by default ─────────────────────────────
+    // ── execute: language never narrows the search ────────────────────────────
 
-    public function test_execute_uses_session_language_when_lang_not_provided(): void
+    public function test_execute_ignores_session_language(): void
     {
         $this->retrieval
             ->expects('retrieveKb')
-            ->with('оплата', 'uk', 5)
+            ->with('оплата', 5)
             ->andReturn([]);
 
         $this->tool->execute(['query' => 'оплата'], $this->makeSession('uk'));
     }
 
-    // ── execute: explicit lang overrides session ──────────────────────────────
-
-    public function test_execute_uses_explicit_lang_over_session_language(): void
+    /** A Russian visitor must still reach Ukrainian articles. */
+    public function test_execute_ignores_a_language_argument_from_the_model(): void
     {
         $this->retrieval
             ->expects('retrieveKb')
-            ->with('оплата', 'ru', 5)
+            ->with('оплата', 5)
             ->andReturn([]);
 
         $this->tool->execute(['query' => 'оплата', 'lang' => 'ru'], $this->makeSession('uk'));
@@ -138,7 +141,7 @@ final class SearchKnowledgeBaseToolTest extends TestCase
     {
         $this->retrieval
             ->expects('retrieveKb')
-            ->with('гарантия', 'ru', 3)
+            ->with('гарантия', 3)
             ->andReturn([]);
 
         $this->tool->execute(['query' => 'гарантия', 'top_k' => 3], $this->makeSession('ru'));

@@ -19,15 +19,21 @@ use Generator;
 
 final class MessageController extends Controller
 {
-    /** Human-readable labels shown in the widget while a tool is running. */
+    /**
+     * Human-readable labels shown in the widget while a tool is running.
+     *
+     * Ukrainian regardless of the language the visitor writes in: everything the
+     * customer sees is Ukrainian. These are server constants, never model output,
+     * so a prompt injection cannot rewrite what the activity indicator says.
+     */
     private const array TOOL_LABELS = [
-        'search_knowledge_base' => 'Ищу информацию…',
-        'search_products'       => 'Ищу товары…',
-        'get_product_details'   => 'Уточняю детали…',
-        'show_products'         => 'Готовлю карточки…',
-        'compare_products'      => 'Сравниваю товары…',
-        'create_lead'           => 'Оформляю заявку…',
-        'get_order_status'      => 'Проверяю заказ…',
+        'search_knowledge_base' => 'Шукаю інформацію…',
+        'search_products'       => 'Шукаю товари…',
+        'get_product_details'   => 'Уточнюю деталі…',
+        'show_products'         => 'Готую картки…',
+        'compare_products'      => 'Порівнюю товари…',
+        'create_lead'           => 'Оформлюю заявку…',
+        'get_order_status'      => 'Перевіряю замовлення…',
     ];
 
     public function __construct(
@@ -102,7 +108,7 @@ final class MessageController extends Controller
                 }
             } catch (RateLimitExceededException $e) {
                 $payload = [
-                    'message' => 'Вы пишете слишком часто. Пожалуйста, подождите немного.',
+                    'message' => 'Ви пишете надто часто. Будь ласка, зачекайте трохи.',
                     'retry_after' => $e->retryAfterSeconds,
                     'reason' => 'rate_limited_'.$e->limitType,
                 ];

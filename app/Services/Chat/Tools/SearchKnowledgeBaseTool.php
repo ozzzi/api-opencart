@@ -37,11 +37,6 @@ final class SearchKnowledgeBaseTool implements ToolInterface
                     'type'        => 'string',
                     'description' => 'The user question or search query.',
                 ],
-                'lang' => [
-                    'type'        => 'string',
-                    'enum'        => ['ru', 'uk'],
-                    'description' => 'Language of the knowledge base to search. Defaults to "ru".',
-                ],
                 'top_k' => [
                     'type'        => 'integer',
                     'minimum'     => 1,
@@ -59,10 +54,9 @@ final class SearchKnowledgeBaseTool implements ToolInterface
     public function execute(array $arguments, ChatSession $session): string
     {
         $query = (string) $arguments['query'];
-        $lang  = isset($arguments['lang']) ? (string) $arguments['lang'] : $session->language ?? 'ru';
         $topK  = isset($arguments['top_k']) ? (int) $arguments['top_k'] : 5;
 
-        $fragments = $this->retrieval->retrieveKb($query, $lang, $topK);
+        $fragments = $this->retrieval->retrieveKb($query, $topK);
 
         if ($fragments === []) {
             return json_encode(['results' => [], 'found' => false], JSON_UNESCAPED_UNICODE);

@@ -108,16 +108,20 @@ final class SearchProductsToolTest extends TestCase
 
     // ── execute: filter passing ───────────────────────────────────────────────
 
-    public function test_execute_passes_session_language_as_lang_filter(): void
+    /**
+     * The catalog is indexed in Ukrainian only, so filtering by the visitor's
+     * detected language would return nothing for a Russian-speaking visitor.
+     */
+    public function test_execute_passes_no_language_filter(): void
     {
         $this->retrieval
             ->expects('retrieveProducts')
             ->withArgs(function (string $query, array $filters): bool {
-                return $filters['lang'] === 'uk';
+                return ! array_key_exists('lang', $filters);
             })
             ->andReturn([]);
 
-        $this->tool->execute(['query' => 'ноутбук'], $this->makeSession('uk'));
+        $this->tool->execute(['query' => 'ноутбук'], $this->makeSession('ru'));
     }
 
     public function test_execute_passes_price_range_filters(): void
