@@ -26,6 +26,10 @@ final class BotChatSettings extends Settings
 
     public string $summarizationPrompt;
 
+    public bool $clarificationEnabled;
+
+    public int $clarificationBroadHitsThreshold;
+
     public static function group(): string
     {
         return 'bot_chat';

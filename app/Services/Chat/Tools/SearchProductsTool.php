@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace App\Services\Chat\Tools;
 
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\ClarificationGateInterface;
 use App\Services\Chat\Contracts\RetrievalServiceInterface;
+use App\Services\Chat\DTO\CatalogBreadth;
+use App\Services\Chat\DTO\RetrievedFragment;
 use App\Services\Chat\Tools\Contracts\ToolInterface;
 
 final class SearchProductsTool implements ToolInterface
 {
     public function __construct(
         private readonly RetrievalServiceInterface $retrieval,
+        private readonly ClarificationGateInterface $gate,
     ) {
     }
 
@@ -23,8 +27,11 @@ final class SearchProductsTool implements ToolInterface
     public function getDescription(): string
     {
         return 'Search the product catalog for items matching a user query. '
-            .'Supports optional filters for price range and stock availability. '
+            .'Supports optional filters for price range. '
             .'Returns 2–4 matching products with name, price, availability, and a direct URL. '
+            .'When the query is too broad to pick anything meaningful, returns '
+            .'status "need_clarification" with a slice of the catalog and no products at all — '
+            .'ask one narrowing question built only from that slice. '
             .'Always use this tool before recommending any product.';
     }
 
@@ -48,9 +55,10 @@ final class SearchProductsTool implements ToolInterface
                     'minimum'     => 0,
                     'description' => 'Maximum price (inclusive).',
                 ],
-                'in_stock' => [
+                'skip_clarification' => [
                     'type'        => 'boolean',
-                    'description' => 'When true (default), only return products currently in stock.',
+                    'description' => 'Set to true when the customer said the choice does not matter '
+                        .'and asked to just show what is available.',
                 ],
                 'limit' => [
                     'type'        => 'integer',
@@ -71,6 +79,12 @@ final class SearchProductsTool implements ToolInterface
         $query = (string) $arguments['query'];
         $limit = isset($arguments['limit']) ? (int) $arguments['limit'] : 4;
 
+        $decision = $this->gate->evaluate($session, $arguments);
+
+        if ($decision->needsClarification && $decision->breadth !== null) {
+            return $this->clarificationResponse($decision->breadth, $decision->round);
+        }
+
         $filters = [];
 
         if (isset($arguments['price_min'])) {
@@ -81,21 +95,25 @@ final class SearchProductsTool implements ToolInterface
             $filters['price_max'] = (float) $arguments['price_max'];
         }
 
-        // in_stock defaults to true; only pass false when explicitly requested
-        if (isset($arguments['in_stock']) && $arguments['in_stock'] === false) {
-            $filters['in_stock'] = false;
-        }
+        // With the question budget spent the query is still undiscriminating, so a
+        // flat top-N would look as random as ever. Fetch wider and spread the pick
+        // across categories instead (FR-4.11).
+        $fetchLimit = $decision->diversify ? $limit * 3 : $limit;
 
-        $fragments = $this->retrieval->retrieveProducts($query, $filters, $limit);
+        $fragments = $this->retrieval->retrieveProducts($query, $filters, $fetchLimit);
+
+        if ($decision->diversify) {
+            $fragments = $this->spreadAcrossCategories($fragments, $limit);
+        }
 
         if ($fragments === []) {
             return json_encode(
-                ['results' => [], 'found' => false],
+                ['status' => 'empty', 'results' => [], 'found' => false],
                 JSON_UNESCAPED_UNICODE,
             );
         }
 
-        $results = array_map(static function ($fragment): array {
+        $results = array_map(static function (RetrievedFragment $fragment): array {
             $src = $fragment->metadata;
 
             return [
@@ -111,8 +129,66 @@ final class SearchProductsTool implements ToolInterface
         }, $fragments);
 
         return json_encode(
-            ['results' => $results, 'found' => true],
+            ['status' => 'ok', 'results' => $results, 'found' => true],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
         );
+    }
+
+    private function clarificationResponse(CatalogBreadth $breadth, int $round): string
+    {
+        return json_encode(
+            [
+                'status'              => 'need_clarification',
+                'reason'              => 'broad_query',
+                'total_hits'          => $breadth->totalHits,
+                'clarification_round' => $round,
+                'price_ranges'        => $breadth->priceRanges,
+                'price_stats'         => $breadth->priceStats,
+                'sample_names'        => $breadth->sampleNames,
+                'products'            => [],
+            ],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        );
+    }
+
+    /**
+     * At most one product per category, then top up by score. Keeps the original
+     * relevance order within each pass, so the best match still leads.
+     *
+     * @param  list<RetrievedFragment> $fragments
+     * @return list<RetrievedFragment>
+     */
+    private function spreadAcrossCategories(array $fragments, int $limit): array
+    {
+        $picked = [];
+        $seenCategories = [];
+        $leftovers = [];
+
+        foreach ($fragments as $fragment) {
+            $category = (string) ($fragment->metadata['category'] ?? '');
+
+            if ($category !== '' && isset($seenCategories[$category])) {
+                $leftovers[] = $fragment;
+
+                continue;
+            }
+
+            $seenCategories[$category] = true;
+            $picked[] = $fragment;
+
+            if (count($picked) === $limit) {
+                return $picked;
+            }
+        }
+
+        foreach ($leftovers as $fragment) {
+            if (count($picked) === $limit) {
+                break;
+            }
+
+            $picked[] = $fragment;
+        }
+
+        return $picked;
     }
 }

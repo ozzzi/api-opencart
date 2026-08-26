@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $language
  * @property Carbon|null $consent_accepted_at
  * @property string|null $context_summary
+ * @property array<string, mixed>|null $clarification_state
  * @property Carbon $last_activity_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -38,6 +39,7 @@ final class ChatSession extends Model
         'language',
         'consent_accepted_at',
         'context_summary',
+        'clarification_state',
         'last_activity_at',
     ];
 
@@ -68,6 +70,7 @@ final class ChatSession extends Model
     {
         return [
             'consent_accepted_at' => 'datetime',
+            'clarification_state' => 'array',
             'last_activity_at' => 'datetime',
         ];
     }

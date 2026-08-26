@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Tests\Unit\Chat\Tools;
 
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\ClarificationGateInterface;
 use App\Services\Chat\Contracts\RetrievalServiceInterface;
+use App\Services\Chat\DTO\CatalogBreadth;
+use App\Services\Chat\DTO\ClarificationDecision;
 use App\Services\Chat\DTO\RetrievedFragment;
 use App\Services\Chat\Tools\SearchProductsTool;
 use Mockery;
@@ -16,6 +19,8 @@ final class SearchProductsToolTest extends TestCase
 {
     private MockInterface $retrieval;
 
+    private MockInterface $gate;
+
     private SearchProductsTool $tool;
 
     protected function setUp(): void
@@ -23,11 +28,17 @@ final class SearchProductsToolTest extends TestCase
         parent::setUp();
 
         $this->retrieval = Mockery::mock(RetrievalServiceInterface::class);
+        $this->gate = Mockery::mock(ClarificationGateInterface::class);
+
+        // Most cases exercise the ordinary path; the gate gets its own section.
+        $this->gate->allows('evaluate')->andReturn(ClarificationDecision::proceed())->byDefault();
 
         /** @var RetrievalServiceInterface $service */
         $service = $this->retrieval;
+        /** @var ClarificationGateInterface $gate */
+        $gate = $this->gate;
 
-        $this->tool = new SearchProductsTool($service);
+        $this->tool = new SearchProductsTool($service, $gate);
     }
 
     // ── contract ──────────────────────────────────────────────────────────────
@@ -50,8 +61,17 @@ final class SearchProductsToolTest extends TestCase
 
         $this->assertArrayHasKey('price_min', $properties);
         $this->assertArrayHasKey('price_max', $properties);
-        $this->assertArrayHasKey('in_stock', $properties);
+        $this->assertArrayHasKey('skip_clarification', $properties);
         $this->assertArrayHasKey('limit', $properties);
+    }
+
+    /**
+     * Out-of-stock products are never offered (FR-4.4) and RetrievalService forces
+     * the filter regardless, so advertising the argument only misleads the model.
+     */
+    public function test_schema_does_not_advertise_in_stock(): void
+    {
+        $this->assertArrayNotHasKey('in_stock', $this->tool->getParameterSchema()['properties']);
     }
 
     public function test_schema_limit_bounded_1_to_4(): void
@@ -164,7 +184,7 @@ final class SearchProductsToolTest extends TestCase
         $this->tool->execute(['query' => 'ноутбук', 'limit' => 2], $this->makeSession('ru'));
     }
 
-    public function test_execute_does_not_pass_in_stock_false_by_default(): void
+    public function test_execute_does_not_pass_in_stock_filter(): void
     {
         $this->retrieval
             ->expects('retrieveProducts')
@@ -176,16 +196,104 @@ final class SearchProductsToolTest extends TestCase
         $this->tool->execute(['query' => 'ноутбук'], $this->makeSession('ru'));
     }
 
-    public function test_execute_passes_in_stock_false_when_explicitly_set(): void
+    public function test_execute_ignores_a_stray_in_stock_argument(): void
     {
         $this->retrieval
             ->expects('retrieveProducts')
             ->withArgs(function (string $q, array $filters): bool {
-                return ($filters['in_stock'] ?? true) === false;
+                return ! array_key_exists('in_stock', $filters);
             })
             ->andReturn([]);
 
         $this->tool->execute(['query' => 'ноутбук', 'in_stock' => false], $this->makeSession('ru'));
+    }
+
+    // ── execute: clarification gate ───────────────────────────────────────────
+
+    public function test_execute_returns_breadth_and_no_products_when_gate_asks(): void
+    {
+        $this->gate
+            ->expects('evaluate')
+            ->andReturn(ClarificationDecision::ask($this->makeBreadth(), 1));
+
+        $this->retrieval->shouldNotReceive('retrieveProducts');
+
+        $result = json_decode(
+            $this->tool->execute(['query' => 'браслет'], $this->makeSession('ru')),
+            true,
+        );
+
+        $this->assertSame('need_clarification', $result['status']);
+        $this->assertSame('broad_query', $result['reason']);
+        $this->assertSame(74, $result['total_hits']);
+        $this->assertSame(1, $result['clarification_round']);
+        $this->assertSame([], $result['products']);
+        $this->assertContains('Браслет "Кобра"', $result['sample_names']);
+        $this->assertArrayNotHasKey('categories', $result);
+    }
+
+    public function test_execute_marks_an_ordinary_answer_as_ok(): void
+    {
+        $this->retrieval
+            ->expects('retrieveProducts')
+            ->andReturn([$this->makeFragment(42, 'Браслет "Кобра"', 180.0, true, 'Браслети', 'http://shop.test/kobra')]);
+
+        $result = json_decode(
+            $this->tool->execute(['query' => 'браслет кобра'], $this->makeSession('ru')),
+            true,
+        );
+
+        $this->assertSame('ok', $result['status']);
+        $this->assertTrue($result['found']);
+    }
+
+    public function test_execute_spreads_across_categories_when_rounds_are_spent(): void
+    {
+        $this->gate
+            ->expects('evaluate')
+            ->andReturn(ClarificationDecision::diversify());
+
+        // Asks for three times the limit so there is something to spread across.
+        $this->retrieval
+            ->expects('retrieveProducts')
+            ->withArgs(fn (string $q, array $f, int $topK): bool => $topK === 6)
+            ->andReturn([
+                $this->makeFragment(1, 'Браслет А', 100.0, true, 'Браслети', 'http://s/1', 0.9),
+                $this->makeFragment(2, 'Браслет Б', 110.0, true, 'Браслети', 'http://s/2', 0.8),
+                $this->makeFragment(3, 'Темляк', 120.0, true, 'Темляки', 'http://s/3', 0.7),
+                $this->makeFragment(4, 'Брелок', 130.0, true, 'Брелки', 'http://s/4', 0.6),
+            ]);
+
+        $result = json_decode(
+            $this->tool->execute(['query' => 'браслет', 'limit' => 2], $this->makeSession('ru')),
+            true,
+        );
+
+        $categories = array_column($result['results'], 'category');
+
+        $this->assertSame(['Браслети', 'Темляки'], $categories);
+    }
+
+    public function test_execute_tops_up_from_leftovers_when_categories_run_out(): void
+    {
+        $this->gate
+            ->expects('evaluate')
+            ->andReturn(ClarificationDecision::diversify());
+
+        $this->retrieval
+            ->expects('retrieveProducts')
+            ->andReturn([
+                $this->makeFragment(1, 'Браслет А', 100.0, true, 'Браслети', 'http://s/1', 0.9),
+                $this->makeFragment(2, 'Браслет Б', 110.0, true, 'Браслети', 'http://s/2', 0.8),
+            ]);
+
+        $result = json_decode(
+            $this->tool->execute(['query' => 'браслет', 'limit' => 2], $this->makeSession('ru')),
+            true,
+        );
+
+        $this->assertCount(2, $result['results']);
+        $this->assertSame([1, 2], array_column($result['results'], 'product_id'));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -193,6 +301,16 @@ final class SearchProductsToolTest extends TestCase
     private function makeSession(string $lang = 'ru'): ChatSession
     {
         return ChatSession::factory()->make(['language' => $lang]);
+    }
+
+    private function makeBreadth(): CatalogBreadth
+    {
+        return new CatalogBreadth(
+            totalHits: 74,
+            priceRanges: [['to' => 150.0, 'count' => 40], ['from' => 150.0, 'count' => 34]],
+            priceStats: ['min' => 60.0, 'max' => 420.0, 'avg' => 175.0],
+            sampleNames: ['Браслет "Кобра"', 'Браслет "Змійка"', 'Браслет "Піранья"'],
+        );
     }
 
     private function makeFragment(

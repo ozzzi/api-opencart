@@ -291,4 +291,50 @@ final class ConversationServiceTest extends TestCase
 
         $this->assertTrue($this->service->needsSummarization($session));
     }
+
+    // ── clarification state ───────────────────────────────────────────────────
+
+    public function test_clarification_state_defaults_to_a_complete_shape(): void
+    {
+        $session = ChatSession::factory()->create();
+
+        $this->assertSame(
+            ['rounds' => 0, 'opted_out' => false, 'last_query_terms' => []],
+            $this->service->getClarificationState($session),
+        );
+    }
+
+    public function test_updating_clarification_state_persists_it(): void
+    {
+        $session = ChatSession::factory()->create();
+
+        $this->service->updateClarificationState($session, [
+            'rounds'           => 1,
+            'last_query_terms' => ['браслет'],
+        ]);
+
+        $this->assertSame([
+            'rounds'           => 1,
+            'opted_out'        => false,
+            'last_query_terms' => ['браслет'],
+        ], $this->service->getClarificationState($session->fresh()));
+    }
+
+    /**
+     * A caller bumping the round counter must not be able to silently clear the
+     * customer's opt-out.
+     */
+    public function test_updating_clarification_state_merges_instead_of_replacing(): void
+    {
+        $session = ChatSession::factory()->create();
+
+        $this->service->updateClarificationState($session, ['opted_out' => true]);
+        $this->service->updateClarificationState($session, ['rounds' => 2]);
+
+        $state = $this->service->getClarificationState($session->fresh());
+
+        $this->assertTrue($state['opted_out']);
+        $this->assertSame(2, $state['rounds']);
+    }
+
 }

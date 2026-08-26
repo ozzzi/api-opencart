@@ -134,6 +134,32 @@ final class ConversationService implements ConversationServiceInterface
     }
 
     /**
+     * @return array{rounds: int, opted_out: bool, last_query_terms: list<string>}
+     */
+    public function getClarificationState(ChatSession $session): array
+    {
+        $state = $session->clarification_state ?? [];
+
+        return [
+            'rounds'           => (int) ($state['rounds'] ?? 0),
+            'opted_out'        => (bool) ($state['opted_out'] ?? false),
+            'last_query_terms' => array_values(array_map(
+                strval(...),
+                (array) ($state['last_query_terms'] ?? []),
+            )),
+        ];
+    }
+
+    /**
+     * @param array{rounds?: int, opted_out?: bool, last_query_terms?: list<string>} $state
+     */
+    public function updateClarificationState(ChatSession $session, array $state): void
+    {
+        $session->clarification_state = [...$this->getClarificationState($session), ...$state];
+        $session->save();
+    }
+
+    /**
      * Rehydrates the JSON-cast tool_calls column back into ToolCall DTOs.
      *
      * @param array<int, array{id: string, name: string, arguments: array<string, mixed>}>|null $toolCalls

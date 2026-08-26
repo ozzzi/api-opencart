@@ -44,19 +44,16 @@ final class RetrievalServiceTest extends TestCase
         $this->service = new RetrievalService($embeddingClient, new HybridSearcher($this->osClient));
     }
 
-    public function test_retrieve_products_requests_exactly_top_k_and_keeps_every_hit(): void
+    public function test_retrieve_products_keeps_every_hit_when_there_is_nothing_to_collapse(): void
     {
-        // One document per product+lang — nothing to collapse.
+        // One document per product — nothing to collapse.
         $hits = [
             $this->hit('1_ru', 0.95, 1),
             $this->hit('2_ru', 0.85, 2),
             $this->hit('3_ru', 0.70, 3),
         ];
 
-        $this->osClient
-            ->expects('search')
-            ->with(Mockery::on(fn (array $params) => $params['body']['size'] === 3))
-            ->andReturn(['hits' => ['hits' => $hits]]);
+        $this->osClient->expects('search')->andReturn(['hits' => ['hits' => $hits]]);
 
         $fragments = $this->service->retrieveProducts('query', [], 3);
 
@@ -66,6 +63,53 @@ final class RetrievalServiceTest extends TestCase
             $fragments,
         ));
         $this->assertSame('1_ru', $fragments[0]->id);
+    }
+
+    /**
+     * Collapsing after the fact would return fewer products than asked for, so the
+     * search has to over-fetch first.
+     */
+    public function test_retrieve_products_over_fetches_to_survive_collapsing(): void
+    {
+        $this->osClient
+            ->expects('search')
+            ->with(Mockery::on(fn (array $params) => $params['body']['size'] === 6))
+            ->andReturn(['hits' => ['hits' => []]]);
+
+        $this->service->retrieveProducts('query', [], 3);
+    }
+
+    /**
+     * A product may be indexed as more than one document; the same item taking two
+     * of the shortlist's slots is what makes a shortlist look arbitrary.
+     */
+    public function test_retrieve_products_keeps_only_the_best_document_per_product(): void
+    {
+        $this->osClient->expects('search')->andReturn(['hits' => ['hits' => [
+            $this->hit('1_uk', 0.95, 1),
+            $this->hit('1_ru', 0.60, 1),
+            $this->hit('2_uk', 0.80, 2),
+        ]]]);
+
+        $fragments = $this->service->retrieveProducts('query', [], 3);
+
+        $this->assertCount(2, $fragments);
+        $this->assertSame(['1_uk', '2_uk'], array_map(
+            static fn ($fragment): string => $fragment->id,
+            $fragments,
+        ));
+    }
+
+    public function test_retrieve_products_never_returns_more_than_top_k(): void
+    {
+        $this->osClient->expects('search')->andReturn(['hits' => ['hits' => [
+            $this->hit('1_uk', 0.95, 1),
+            $this->hit('2_uk', 0.90, 2),
+            $this->hit('3_uk', 0.85, 3),
+            $this->hit('4_uk', 0.80, 4),
+        ]]]);
+
+        $this->assertCount(2, $this->service->retrieveProducts('query', [], 2));
     }
 
     public function test_retrieve_products_drops_hits_below_the_score_threshold(): void

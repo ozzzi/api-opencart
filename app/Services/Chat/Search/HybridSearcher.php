@@ -23,19 +23,20 @@ use Throwable;
  */
 final class HybridSearcher
 {
-    /** RRF constant — higher value reduces the impact of rank position. */
-    private const int RRF_K = 60;
-
     /**
      * Text fields queried by BM25.  Covers both kb_index and products_index;
      * OpenSearch silently skips unknown fields, so one list works for all.
+     *
+     * Public because CatalogBreadthProbe measures how many products a query
+     * matches and must weigh the same fields the real search does — a probe
+     * scoped differently would report a breadth the search never sees.
      *
      * Each field is queried together with its `.ru` / `.uk` hunspell sub-fields
      * (see IndexSchemas::multiLangTextField) — the root field uses the standard
      * analyzer and therefore matches word forms literally, which alone would
      * make "паракорд" miss a document containing only "паракорда".
      */
-    private const array TEXT_FIELDS = [
+    public const array TEXT_FIELDS = [
         'title^3', 'title.ru^3', 'title.uk^3',
         'name^3', 'name.ru^3', 'name.uk^3',
         'category^2', 'category.ru^2', 'category.uk^2',
@@ -43,6 +44,8 @@ final class HybridSearcher
         'content', 'content.ru', 'content.uk',
         'description', 'description.ru', 'description.uk',
     ];
+    /** RRF constant — higher value reduces the impact of rank position. */
+    private const int RRF_K = 60;
     /** @var bool|null null = not yet checked */
     private ?bool $pipelineAvailable = null;
 

@@ -172,6 +172,36 @@
                             </div>
                         </div>
                     </div>
+
+                    {{-- Clarification gate --}}
+                    <div class="admin-card p-5"
+                         x-data="{ enabled: {{ old('clarificationEnabled', $chat->clarificationEnabled ? '1' : '0') === '1' ? 'true' : 'false' }} }">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-sm font-semibold text-white">Уточнювальні запитання</h3>
+                                <p class="text-xs text-slate-500 mt-0.5">На надто загальний запит бот питає, а не показує випадкові товари</p>
+                            </div>
+                            <label class="cursor-pointer">
+                                <input type="hidden" name="clarificationEnabled" :value="enabled ? '1' : '0'">
+                                <button type="button"
+                                        @click="enabled = !enabled"
+                                        :class="enabled ? 'bg-sky-600' : 'bg-slate-700'"
+                                        class="relative inline-flex w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none">
+                                    <span :class="enabled ? 'translate-x-5' : 'translate-x-0.5'"
+                                          class="inline-block w-5 h-5 mt-0.5 bg-white rounded-full shadow-sm transition-transform duration-200"></span>
+                                </button>
+                            </label>
+                        </div>
+                        <div :class="enabled ? 'opacity-100' : 'opacity-40 pointer-events-none'" class="transition-opacity">
+                            <label for="clarificationBroadHitsThreshold" class="block text-xs text-slate-500 mb-1.5">Поріг широкого запиту (товарів)</label>
+                            <input id="clarificationBroadHitsThreshold" type="number" name="clarificationBroadHitsThreshold"
+                                   value="{{ old('clarificationBroadHitsThreshold', $chat->clarificationBroadHitsThreshold) }}"
+                                   min="1" max="10000"
+                                   class="input-field w-full max-w-xs rounded-lg px-3 py-2 text-sm text-white @error('clarificationBroadHitsThreshold') ring-1 ring-red-500/50 @enderror">
+                            @error('clarificationBroadHitsThreshold')<p class="mt-1.5 text-xs text-red-400">{{ $message }}</p>@enderror
+                            <p class="mt-1 text-[10px] text-slate-600">Якщо запиту відповідає більше товарів — бот ставить одне уточнювальне запитання замість видачі</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 

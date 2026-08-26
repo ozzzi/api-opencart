@@ -51,6 +51,8 @@ final class SettingsController extends Controller
         $chat->sessionTtlMinutes = (int) $data['sessionTtlMinutes'];
         $chat->degradedModeMessage = $data['degradedModeMessage'];
         $chat->summarizationPrompt = $data['summarizationPrompt'];
+        $chat->clarificationEnabled = (bool) ($data['clarificationEnabled'] ?? false);
+        $chat->clarificationBroadHitsThreshold = (int) $data['clarificationBroadHitsThreshold'];
         $chat->save();
 
         $llm->primaryModel = $data['primaryModel'];

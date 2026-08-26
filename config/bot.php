@@ -86,4 +86,56 @@ return [
         'recovery_timeout_sec'   => 60,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Product Clarification Gate
+    |--------------------------------------------------------------------------
+    |
+    | Stops search_products from answering a query that does not discriminate the
+    | catalog ("я хочу браслет").
+    |
+    | broad_hits_threshold is the only value that normally needs tuning; it and
+    | `enabled` are mirrored in BotChatSettings so an operator can change them
+    | from the admin panel. The rest stay here.
+    |
+    */
+
+    'clarification' => [
+        'enabled'              => true,
+        'broad_hits_threshold' => 12,
+        'max_query_terms'      => 2,
+        'max_rounds'           => 1,
+        'sample_size'          => 30,
+
+        // Boundaries of the price range aggregation, ascending. Shop-specific:
+        // these split the live catalog near its quartiles (p25 ≈ 675, p50 ≈ 1270,
+        // p75 ≈ 1990). Buckets that leave 90% of hits in one range tell the
+        // assistant nothing, so revisit them after a big catalog change.
+        'price_buckets' => [700, 1500, 2500],
+
+        // Words that carry no discriminating power and are ignored when counting
+        // the significant terms of a query (UA/RU). Tokens shorter than 3 chars
+        // are dropped regardless.
+        'stop_words' => [
+            'хочу', 'треба', 'потрібно', 'потрібен', 'потрібна', 'шукаю', 'шукав',
+            'мені', 'мене', 'дайте', 'покажи', 'покажіть', 'підкажіть', 'порадьте',
+            'купити', 'придбати', 'замовити', 'який', 'яка', 'яке', 'які', 'щось',
+            'товар', 'товари', 'варіант', 'варіанти', 'наявність', 'будь', 'ласка',
+            'нужен', 'нужна', 'нужно', 'ищу', 'мне', 'подскажите', 'посоветуйте',
+            'покажите', 'купить', 'заказать', 'какой', 'какая', 'какие', 'что',
+            'нибудь', 'товары', 'вариант', 'варианты', 'пожалуйста', 'есть',
+        ],
+
+        // Phrases that mean "stop asking, just show me what you have" (UA/RU).
+        // Matched as substrings against the customer's latest message.
+        'opt_out_phrases' => [
+            'покажи що є', 'покажіть що є', 'давай що є', 'не важливо',
+            'неважливо', 'байдуже', 'будь-який', 'будь який', 'все одно',
+            'на твій розсуд', 'покажи все', 'покажи всі',
+            'покажи что есть', 'покажите что есть', 'давай что есть',
+            'не важно', 'неважно', 'любой', 'все равно', 'всё равно',
+            'на твое усмотрение', 'покажи всё',
+        ],
+    ],
+
 ];

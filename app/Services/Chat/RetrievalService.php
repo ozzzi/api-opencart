@@ -90,10 +90,45 @@ final class RetrievalService implements RetrievalServiceInterface
             queryText: $query,
             queryVector: $vector,
             filters: $osFilters,
-            topK: $topK,
+            topK: $topK * 2,
         );
 
-        return $this->toFragments($hits, 'products');
+        $fragments = $this->dedupeByProductId($this->toFragments($hits, 'products'));
+
+        return array_slice($fragments, 0, $topK);
+    }
+
+    /**
+     * Keeps one fragment per product — the highest scoring one.
+     *
+     * @param  list<RetrievedFragment> $fragments
+     * @return list<RetrievedFragment>
+     */
+    private function dedupeByProductId(array $fragments): array
+    {
+        /** @var array<int|string, RetrievedFragment> $best */
+        $best = [];
+        $unidentified = [];
+
+        foreach ($fragments as $fragment) {
+            $productId = $fragment->metadata['product_id'] ?? null;
+
+            if ($productId === null) {
+                $unidentified[] = $fragment;
+
+                continue;
+            }
+
+            if (! isset($best[$productId]) || $fragment->score > $best[$productId]->score) {
+                $best[$productId] = $fragment;
+            }
+        }
+
+        $deduped = [...array_values($best), ...$unidentified];
+
+        usort($deduped, static fn (RetrievedFragment $a, RetrievedFragment $b): int => $b->score <=> $a->score);
+
+        return $deduped;
     }
 
     // -------------------------------------------------------------------------

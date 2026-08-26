@@ -27,6 +27,8 @@ final class SettingsFormRequest extends FormRequest
             'sessionTtlMinutes'   => ['required', 'integer', 'min:5', 'max:1440'],
             'degradedModeMessage' => ['required', 'string', 'max:500'],
             'summarizationPrompt' => ['required', 'string', 'max:5000'],
+            'clarificationEnabled'            => ['nullable', 'boolean'],
+            'clarificationBroadHitsThreshold' => ['required', 'integer', 'min:1', 'max:10000'],
 
             // bot_llm
             'primaryModel'        => ['required', 'string', 'max:100'],
@@ -68,6 +70,7 @@ final class SettingsFormRequest extends FormRequest
             'sessionTtlMinutes'   => 'TTL сесії',
             'degradedModeMessage' => 'повідомлення деградованого режиму',
             'summarizationPrompt' => 'промпт суммаризації',
+            'clarificationBroadHitsThreshold' => 'поріг широкого запиту',
             'primaryModel'        => 'основна модель',
             'fallbackModel'       => 'резервна модель',
             'embeddingProvider'   => 'провайдер ембедингів',

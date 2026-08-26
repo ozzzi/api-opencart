@@ -15,6 +15,7 @@ use App\Observers\KnowledgeBaseArticleObserver;
 use App\Services\Chat\CircuitBreaker\CircuitBreaker;
 use App\Services\Chat\CircuitBreaker\CircuitBreakerInterface;
 use App\Services\Chat\Contracts\AlertNotifierInterface;
+use App\Services\Chat\Contracts\ClarificationGateInterface;
 use App\Services\Chat\Contracts\ConversationServiceInterface;
 use App\Services\Chat\Contracts\EmbeddingClientInterface;
 use App\Services\Chat\Contracts\LeadNotifierInterface;
@@ -43,6 +44,8 @@ use App\Services\Chat\RateLimiter;
 use App\Services\Chat\Llm\LocalHttpEmbeddingClient;
 use App\Services\Chat\Llm\OpenAiEmbeddingClient;
 use App\Services\Chat\RetrievalService;
+use App\Services\Chat\Search\CatalogBreadthProbe;
+use App\Services\Chat\Search\ClarificationGate;
 use App\Services\Chat\Search\HybridSearcher;
 use App\Services\Chat\Search\OpenSearchClientFactory;
 use App\Services\Chat\Search\OpenSearchIndexer;
@@ -112,6 +115,10 @@ final class BotServiceProvider extends ServiceProvider
 
         $this->app->singleton(OpenSearchIndexer::class);
         $this->app->singleton(HybridSearcher::class);
+
+        $this->app->singleton(CatalogBreadthProbe::class);
+        $this->app->singleton(ClarificationGate::class);
+        $this->app->alias(ClarificationGate::class, ClarificationGateInterface::class);
 
         $this->app->singleton(RetrievalService::class);
         $this->app->alias(RetrievalService::class, RetrievalServiceInterface::class);

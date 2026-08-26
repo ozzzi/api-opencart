@@ -32,4 +32,14 @@ interface ConversationServiceInterface
     public function buildContextWindow(ChatSession $session): array;
 
     public function needsSummarization(ChatSession $session): bool;
+
+    /**
+     * @return array{rounds: int, opted_out: bool, last_query_terms: list<string>}
+     */
+    public function getClarificationState(ChatSession $session): array;
+
+    /**
+     * @param array{rounds?: int, opted_out?: bool, last_query_terms?: list<string>} $state
+     */
+    public function updateClarificationState(ChatSession $session, array $state): void;
 }
