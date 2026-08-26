@@ -111,7 +111,7 @@ return [
         // these split the live catalog near its quartiles (p25 ≈ 675, p50 ≈ 1270,
         // p75 ≈ 1990). Buckets that leave 90% of hits in one range tell the
         // assistant nothing, so revisit them after a big catalog change.
-        'price_buckets' => [700, 1500, 2500],
+        'price_buckets' => [8, 80, 150],
 
         // Words that carry no discriminating power and are ignored when counting
         // the significant terms of a query (UA/RU). Tokens shorter than 3 chars
