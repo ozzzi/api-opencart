@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Chat;
 
 use App\Exceptions\Chat\SessionNotFoundException;
+use App\Jobs\SendNewDialogNotificationJob;
 use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
 use App\Services\Chat\Contracts\ConversationServiceInterface;
@@ -68,6 +69,9 @@ final class ConversationService implements ConversationServiceInterface
         string $content,
         array $options = [],
     ): ChatMessage {
+        $isFirstUserMessage = $role === 'user'
+            && !$session->messages()->where('role', 'user')->exists();
+
         $message = ChatMessage::create([
             'session_id' => $session->id,
             'role' => $role,
@@ -84,6 +88,10 @@ final class ConversationService implements ConversationServiceInterface
 
         $session->last_activity_at = now();
         $session->save();
+
+        if ($isFirstUserMessage) {
+            SendNewDialogNotificationJob::dispatch($session->id);
+        }
 
         return $message;
     }

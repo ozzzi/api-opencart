@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Chat;
 
 use App\Exceptions\Chat\SessionNotFoundException;
+use App\Jobs\SendNewDialogNotificationJob;
 use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
 use App\Services\Chat\ConversationService;
@@ -12,6 +13,7 @@ use App\Services\Chat\DTO\LlmChatMessage;
 use App\Services\Chat\DTO\ToolCall;
 use App\Settings\BotChatSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use ReflectionClass;
 use Tests\TestCase;
 
@@ -94,6 +96,7 @@ final class ConversationServiceTest extends TestCase
 
     public function test_add_message_persists_and_returns_chat_message(): void
     {
+        Queue::fake();
         $session = ChatSession::factory()->create();
 
         $message = $this->service->addMessage($session, 'user', 'Hello!');
@@ -108,6 +111,7 @@ final class ConversationServiceTest extends TestCase
 
     public function test_add_message_updates_last_activity_at(): void
     {
+        Queue::fake();
         $session = ChatSession::factory()->create([
             'last_activity_at' => now()->subMinutes(10),
         ]);
@@ -172,11 +176,73 @@ final class ConversationServiceTest extends TestCase
 
     public function test_add_message_leaves_parts_null_when_not_supplied(): void
     {
+        Queue::fake();
         $session = ChatSession::factory()->create();
 
         $message = $this->service->addMessage($session, 'user', 'Привіт');
 
         $this->assertNull($message->fresh()->parts);
+    }
+
+    // ── addMessage: new-dialog notification ─────────────────────────────────────
+
+    public function test_first_user_message_dispatches_new_dialog_notification(): void
+    {
+        Queue::fake();
+        $session = ChatSession::factory()->create();
+
+        $this->service->addMessage($session, 'user', 'Привіт, у вас є ноутбуки?');
+
+        Queue::assertPushed(
+            SendNewDialogNotificationJob::class,
+            fn (SendNewDialogNotificationJob $job): bool => $this->sessionIdOf($job) === $session->id,
+        );
+    }
+
+    public function test_second_user_message_does_not_dispatch_again(): void
+    {
+        Queue::fake();
+        $session = ChatSession::factory()->create();
+
+        $this->service->addMessage($session, 'user', 'Привіт');
+        $this->service->addMessage($session, 'user', 'Ще запитання');
+
+        Queue::assertPushedTimes(SendNewDialogNotificationJob::class, 1);
+    }
+
+    public function test_assistant_message_never_dispatches_the_notification(): void
+    {
+        Queue::fake();
+        $session = ChatSession::factory()->create();
+
+        $this->service->addMessage($session, 'assistant', 'Вітаю! Чим можу допомогти?');
+
+        Queue::assertNotPushed(SendNewDialogNotificationJob::class);
+    }
+
+    public function test_tool_message_never_dispatches_the_notification(): void
+    {
+        Queue::fake();
+        $session = ChatSession::factory()->create();
+
+        $this->service->addMessage($session, 'tool', '{"result":true}', [
+            'tool_name' => 'search_products',
+        ]);
+
+        Queue::assertNotPushed(SendNewDialogNotificationJob::class);
+    }
+
+    public function test_new_dialog_notification_is_queued_on_the_notifications_queue(): void
+    {
+        Queue::fake();
+        $session = ChatSession::factory()->create();
+
+        $this->service->addMessage($session, 'user', 'Привіт');
+
+        Queue::assertPushed(
+            SendNewDialogNotificationJob::class,
+            fn (SendNewDialogNotificationJob $job): bool => $job->queue === 'notifications',
+        );
     }
 
     // ── buildContextWindow ────────────────────────────────────────────────────
@@ -335,6 +401,14 @@ final class ConversationServiceTest extends TestCase
 
         $this->assertTrue($state['opted_out']);
         $this->assertSame(2, $state['rounds']);
+    }
+
+    private function sessionIdOf(SendNewDialogNotificationJob $job): string
+    {
+        $property = (new ReflectionClass($job))->getProperty('sessionId');
+        $property->setAccessible(true);
+
+        return $property->getValue($job);
     }
 
 }
