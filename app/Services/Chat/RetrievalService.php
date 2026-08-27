@@ -44,7 +44,7 @@ final class RetrievalService implements RetrievalServiceInterface
             queryText: $query,
             queryVector: $vector,
             filters: $filters,
-            topK: $topK,
+            topK: max($topK * 4, 20),
         );
 
         return $this->toFragments($hits, 'kb');
@@ -90,12 +90,17 @@ final class RetrievalService implements RetrievalServiceInterface
             queryText: $query,
             queryVector: $vector,
             filters: $osFilters,
-            topK: $topK * 2,
+            topK: self::candidatePoolSize($topK),
         );
 
         $fragments = $this->dedupeByProductId($this->toFragments($hits, 'products'));
 
         return array_slice($fragments, 0, $topK);
+    }
+
+    private static function candidatePoolSize(int $topK): int
+    {
+        return max($topK * 8, 40);
     }
 
     /**

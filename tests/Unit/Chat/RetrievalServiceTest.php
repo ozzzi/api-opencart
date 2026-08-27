@@ -67,16 +67,27 @@ final class RetrievalServiceTest extends TestCase
 
     /**
      * Collapsing after the fact would return fewer products than asked for, so the
-     * search has to over-fetch first.
+     * search has to over-fetch first — and by enough that the shortlist is a
+     * choice rather than whatever survived the language split.
      */
     public function test_retrieve_products_over_fetches_to_survive_collapsing(): void
     {
         $this->osClient
             ->expects('search')
-            ->with(Mockery::on(fn (array $params) => $params['body']['size'] === 6))
+            ->with(Mockery::on(fn (array $params) => $params['body']['size'] === 40))
             ->andReturn(['hits' => ['hits' => []]]);
 
         $this->service->retrieveProducts('query', [], 3);
+    }
+
+    public function test_retrieve_products_scales_the_pool_with_top_k(): void
+    {
+        $this->osClient
+            ->expects('search')
+            ->with(Mockery::on(fn (array $params) => $params['body']['size'] === 80))
+            ->andReturn(['hits' => ['hits' => []]]);
+
+        $this->service->retrieveProducts('query', [], 10);
     }
 
     /**
@@ -170,7 +181,11 @@ final class RetrievalServiceTest extends TestCase
 
         $this->service->retrieveProducts('паракорд', [], 3);
 
-        $fields = $captured['body']['query']['hybrid']['queries'][0]['bool']['must'][0]['multi_match']['fields'];
+        $fields = [];
+
+        foreach ($captured['body']['query']['hybrid']['queries'][0]['bool']['should'] as $clause) {
+            $fields = [...$fields, ...($clause['multi_match']['fields'] ?? [])];
+        }
 
         $this->assertContains('name.uk^3', $fields);
         $this->assertContains('name.ru^3', $fields);

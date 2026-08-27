@@ -296,12 +296,86 @@ final class SearchProductsToolTest extends TestCase
         $this->assertSame([1, 2], array_column($result['results'], 'product_id'));
     }
 
+    // ── evidence for grounding ────────────────────────────────────────────────
+
+    /**
+     * Ranking alone cannot tell the assistant whether the lanyard it is about to
+     * recommend actually has a skull on it. Without this the model receives a
+     * name and a price and has to take the shortlist on faith.
+     */
+    public function test_results_report_which_query_terms_the_product_matched(): void
+    {
+        config()->set('bot.clarification.stop_words', []);
+
+        $this->retrieval->allows('retrieveProducts')->andReturn([
+            $this->makeFragment(
+                1,
+                'Темляк "Мумія"',
+                240.0,
+                true,
+                'Темляки',
+                '/temlyak-mumiya',
+                description: 'Плетений темляк, прикрашений намистом-черепом ручної роботи.',
+            ),
+            $this->makeFragment(2, 'Темляк паракордовий', 180.0, true, 'Темляки', '/temlyak-550'),
+        ]);
+
+        $results = json_decode(
+            $this->tool->execute(['query' => 'темляк с черепом'], new ChatSession()),
+            true,
+        )['results'];
+
+        $this->assertSame(['темляк', 'черепом'], $results[0]['matched_terms']);
+        $this->assertSame(['темляк'], $results[1]['matched_terms']);
+    }
+
+    public function test_a_snippet_shows_the_matched_text(): void
+    {
+        config()->set('bot.clarification.stop_words', []);
+
+        $this->retrieval->allows('retrieveProducts')->andReturn([
+            $this->makeFragment(
+                1,
+                'Темляк "Мумія"',
+                240.0,
+                true,
+                'Темляки',
+                '/temlyak-mumiya',
+                description: 'Плетений темляк, прикрашений намистом-черепом ручної роботи.',
+            ),
+        ]);
+
+        $results = json_decode(
+            $this->tool->execute(['query' => 'темляк с черепом'], new ChatSession()),
+            true,
+        )['results'];
+
+        $this->assertStringContainsString('намистом-черепом', $results[0]['snippet']);
+    }
+
+    public function test_a_product_with_no_description_gets_an_empty_snippet(): void
+    {
+        config()->set('bot.clarification.stop_words', []);
+
+        $this->retrieval->allows('retrieveProducts')->andReturn([
+            $this->makeFragment(2, 'Темляк паракордовий', 180.0, true, 'Темляки', '/temlyak-550'),
+        ]);
+
+        $results = json_decode(
+            $this->tool->execute(['query' => 'темляк с черепом'], new ChatSession()),
+            true,
+        )['results'];
+
+        $this->assertSame('', $results[0]['snippet']);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private function makeSession(string $lang = 'ru'): ChatSession
     {
         return ChatSession::factory()->make(['language' => $lang]);
     }
+
 
     private function makeBreadth(): CatalogBreadth
     {
@@ -321,6 +395,7 @@ final class SearchProductsToolTest extends TestCase
         string $category,
         string $url,
         float $score = 0.88,
+        string $description = '',
     ): RetrievedFragment {
         return new RetrievedFragment(
             source: 'products',
@@ -328,13 +403,14 @@ final class SearchProductsToolTest extends TestCase
             content: $name,
             score: $score,
             metadata: [
-                'product_id' => $productId,
-                'name'       => $name,
-                'price'      => $price,
-                'in_stock'   => $inStock,
-                'category'   => $category,
-                'url'        => $url,
-                'image'      => '',
+                'product_id'  => $productId,
+                'name'        => $name,
+                'description' => $description,
+                'price'       => $price,
+                'in_stock'    => $inStock,
+                'category'    => $category,
+                'url'         => $url,
+                'image'       => '',
             ],
         );
     }

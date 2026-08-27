@@ -9,10 +9,13 @@ use App\Services\Chat\Contracts\ClarificationGateInterface;
 use App\Services\Chat\Contracts\RetrievalServiceInterface;
 use App\Services\Chat\DTO\CatalogBreadth;
 use App\Services\Chat\DTO\RetrievedFragment;
+use App\Services\Chat\Search\QueryTerms;
 use App\Services\Chat\Tools\Contracts\ToolInterface;
 
 final class SearchProductsTool implements ToolInterface
 {
+    private const int SNIPPET_RADIUS = 120;
+
     public function __construct(
         private readonly RetrievalServiceInterface $retrieval,
         private readonly ClarificationGateInterface $gate,
@@ -113,18 +116,23 @@ final class SearchProductsTool implements ToolInterface
             );
         }
 
-        $results = array_map(static function (RetrievedFragment $fragment): array {
+        $terms = QueryTerms::significant($query);
+
+        $results = array_map(function (RetrievedFragment $fragment) use ($terms): array {
             $src = $fragment->metadata;
+            $matched = $this->matchedTerms($terms, $src);
 
             return [
-                'product_id' => $src['product_id'] ?? null,
-                'name'       => $src['name'] ?? $fragment->content,
-                'price'      => $src['price'] ?? null,
-                'in_stock'   => $src['in_stock'] ?? true,
-                'category'   => $src['category'] ?? null,
-                'url'        => $src['url'] ?? null,
-                'image'      => $src['image'] ?? null,
-                'score'      => round($fragment->score, 4),
+                'product_id'    => $src['product_id'] ?? null,
+                'name'          => $src['name'] ?? $fragment->content,
+                'price'         => $src['price'] ?? null,
+                'in_stock'      => $src['in_stock'] ?? true,
+                'category'      => $src['category'] ?? null,
+                'url'           => $src['url'] ?? null,
+                'image'         => $src['image'] ?? null,
+                'score'         => round($fragment->score, 4),
+                'matched_terms' => $matched,
+                'snippet'       => $this->snippet((string) ($src['description'] ?? ''), $matched),
             ];
         }, $fragments);
 
@@ -149,6 +157,66 @@ final class SearchProductsTool implements ToolInterface
             ],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
         );
+    }
+
+    /**
+     * @param  list<string>         $terms
+     * @param  array<string, mixed> $source
+     * @return list<string>
+     */
+    private function matchedTerms(array $terms, array $source): array
+    {
+        $haystack = mb_strtolower(implode(' ', array_filter([
+            (string) ($source['name'] ?? ''),
+            (string) ($source['description'] ?? ''),
+            (string) ($source['attributes'] ?? ''),
+            (string) ($source['category'] ?? ''),
+        ])));
+
+        if ($haystack === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $terms,
+            static fn (string $term): bool => mb_strpos($haystack, $term) !== false,
+        ));
+    }
+
+    /**
+     * @param list<string> $matched
+     */
+    private function snippet(string $description, array $matched): string
+    {
+        if ($description === '' || $matched === []) {
+            return '';
+        }
+
+        $position = false;
+        $found = '';
+
+        foreach ($matched as $term) {
+            $position = mb_stripos($description, $term);
+
+            if ($position !== false) {
+                $found = $term;
+
+                break;
+            }
+        }
+
+        if ($position === false) {
+            return '';
+        }
+
+        $start = max(0, $position - self::SNIPPET_RADIUS);
+        $length = self::SNIPPET_RADIUS * 2 + mb_strlen($found);
+
+        $snippet = mb_trim(mb_substr($description, $start, $length));
+
+        return ($start > 0 ? '…' : '')
+            .$snippet
+            .($start + $length < mb_strlen($description) ? '…' : '');
     }
 
     /**

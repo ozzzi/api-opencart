@@ -37,13 +37,27 @@ final class HybridSearcher
      * make "паракорд" miss a document containing only "паракорда".
      */
     public const array TEXT_FIELDS = [
+        ...self::NAME_FIELDS,
+        ...self::CATEGORY_FIELDS,
+        ...self::ATTRIBUTE_FIELDS,
+        ...self::BODY_FIELDS,
+    ];
+
+    private const array NAME_FIELDS = [
         'title^3', 'title.ru^3', 'title.uk^3',
         'name^3', 'name.ru^3', 'name.uk^3',
+    ];
+    private const array CATEGORY_FIELDS = [
         'category^2', 'category.ru^2', 'category.uk^2',
+    ];
+    private const array ATTRIBUTE_FIELDS = [
         'attributes', 'attributes.ru', 'attributes.uk',
+    ];
+    private const array BODY_FIELDS = [
         'content', 'content.ru', 'content.uk',
         'description', 'description.ru', 'description.uk',
     ];
+
     /** RRF constant — higher value reduces the impact of rank position. */
     private const int RRF_K = 60;
     /** @var bool|null null = not yet checked */
@@ -149,12 +163,18 @@ final class HybridSearcher
     }
 
     /**
-     * Reciprocal Rank Fusion.
+     * Weighted Reciprocal Rank Fusion.
      *
-     * score(d) = Σ  1 / (RRF_K + rank_i(d))  for each result list i
+     * score(d) = Σ  weight_i / (RRF_K + rank_i(d))  for each result list i
      *
-     * @param  list<array{_id:string,_score:float,_source:array<string,mixed>}> $listA
-     * @param  list<array{_id:string,_score:float,_source:array<string,mixed>}> $listB
+     * The weights are the same `opensearch.hybrid.*` values the
+     * normalization-processor uses. Without them this fallback ranked BM25 and
+     * k-NN 50/50 regardless of configuration, so the two modes disagreed: a
+     * document winning k-NN could outrank the BM25 winner here but not there,
+     * and re-tuning the weights had no effect on the fallback at all.
+     *
+     * @param  list<array{_id:string,_score:float,_source:array<string,mixed>}> $listA  BM25 hits.
+     * @param  list<array{_id:string,_score:float,_source:array<string,mixed>}> $listB  k-NN hits.
      * @return list<array{_id:string,_score:float,_source:array<string,mixed>}>
      */
     private function mergeWithRrf(array $listA, array $listB, int $topK): array
@@ -162,10 +182,15 @@ final class HybridSearcher
         /** @var array<string, array{score:float,source:array<string,mixed>}> $merged */
         $merged = [];
 
-        foreach ([$listA, $listB] as $list) {
+        $weights = [
+            (float) config('opensearch.hybrid.bm25_weight', 0.5),
+            (float) config('opensearch.hybrid.knn_weight', 0.5),
+        ];
+
+        foreach ([$listA, $listB] as $listIndex => $list) {
             foreach ($list as $rank => $hit) {
                 $id = $hit['_id'];
-                $rrfScore = 1.0 / (self::RRF_K + $rank + 1);
+                $rrfScore = $weights[$listIndex] / (self::RRF_K + $rank + 1);
 
                 if (isset($merged[$id])) {
                     $merged[$id]['score'] += $rrfScore;
@@ -191,27 +216,100 @@ final class HybridSearcher
     // -------------------------------------------------------------------------
 
     /**
+     * Additive BM25 scoring: one `should` clause per semantic field group plus a
+     * coverage bonus, so matching in two places beats matching in one.
+     *
      * @param  list<array<string, mixed>> $filters
      * @return array<string, mixed>
      */
     private function buildBm25Query(string $queryText, array $filters): array
     {
-        $multiMatch = [
-            'multi_match' => [
-                'query'  => $queryText,
-                'fields' => self::TEXT_FIELDS,
-                'type'   => 'best_fields',
-            ],
+        $should = [
+            $this->groupClause($queryText, self::NAME_FIELDS, 8.0, type: 'phrase'),
+            $this->groupClause($queryText, self::NAME_FIELDS, 3.0, fuzziness: 'AUTO'),
+            $this->groupClause($queryText, self::CATEGORY_FIELDS, 2.0),
+            $this->groupClause($queryText, self::ATTRIBUTE_FIELDS, 2.0),
+            $this->groupClause($queryText, self::BODY_FIELDS, 1.5),
         ];
 
-        if ($filters === []) {
-            return $multiMatch;
+        $coverage = $this->buildCoverageClause($queryText);
+
+        if ($coverage !== null) {
+            $should[] = $coverage;
+        }
+
+        $bool = [
+            'should'               => $should,
+            'minimum_should_match' => 1,
+        ];
+
+        if ($filters !== []) {
+            $bool['filter'] = $filters;
+        }
+
+        return ['bool' => $bool];
+    }
+
+    /**
+     * One `should` clause over a single field group.
+     *
+     * `fuzziness` is not accepted alongside `type: phrase`, so the two are never
+     * passed together.
+     *
+     * @param  list<string>        $fields
+     * @return array<string, mixed>
+     */
+    private function groupClause(
+        string $queryText,
+        array $fields,
+        float $boost,
+        string $type = 'best_fields',
+        ?string $fuzziness = null,
+    ): array {
+        $clause = [
+            'query'  => $queryText,
+            'fields' => $fields,
+            'type'   => $type,
+            'boost'  => $boost,
+        ];
+
+        if ($fuzziness !== null) {
+            $clause['fuzziness'] = $fuzziness;
+        }
+
+        return ['multi_match' => $clause];
+    }
+
+    /**
+     * Rewards documents where every significant term of the query is found
+     * somewhere — the signal that separates "Темляк «Мумія»", whose description
+     * mentions a skull, from the thirty other lanyards that match only "темляк".
+     *
+     * Deliberately a `should` and not a `must`: a query whose terms appear
+     * nowhere together still returns its best partial matches instead of an
+     * empty result set, so behaviour degrades to what it was rather than
+     * breaking.
+     *
+     * Returns null for single-term queries, where it would only duplicate the
+     * group clauses above.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function buildCoverageClause(string $queryText): ?array
+    {
+        $terms = QueryTerms::significant($queryText);
+
+        if (count($terms) < 2) {
+            return null;
         }
 
         return [
             'bool' => [
-                'must'   => [$multiMatch],
-                'filter' => $filters,
+                'must' => array_map(
+                    fn (string $term): array => $this->groupClause($term, self::TEXT_FIELDS, 1.0),
+                    $terms,
+                ),
+                'boost' => 6.0,
             ],
         ];
     }

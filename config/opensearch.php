@@ -69,8 +69,8 @@ return [
 
     'hybrid' => [
         'pipeline_id'   => 'chat_hybrid_pipeline',
-        'bm25_weight'   => 0.3,
-        'knn_weight'    => 0.7,
+        'bm25_weight'   => (float) env('BOT_HYBRID_BM25_WEIGHT', 0.55),
+        'knn_weight'    => (float) env('BOT_HYBRID_KNN_WEIGHT', 0.45),
         'normalization' => 'min_max',
         'combination'   => 'arithmetic_mean',
     ],

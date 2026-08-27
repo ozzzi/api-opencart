@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
 use OpenSearch\Client;
 use Throwable;
 
-#[Signature('chat:setup-search-indices {--f|force : Delete and recreate existing indexes.}')]
+#[Signature('chat:setup-search-indices {--f|force : Delete and recreate existing indexes.} {--pipeline-only : Recreate only the hybrid search pipeline, leaving indexed data untouched.}')]
 #[Description('Create (or recreate) OpenSearch indexes and the hybrid search pipeline.')]
 final class SetupSearchIndices extends Command
 {
@@ -23,6 +23,15 @@ final class SetupSearchIndices extends Command
     public function handle(): int
     {
         $force = (bool) $this->option('force');
+
+        if ($this->option('pipeline-only')) {
+            $this->setupPipeline(force: true);
+
+            $this->newLine();
+            $this->info('Done.');
+
+            return self::SUCCESS;
+        }
 
         $this->setupIndex(
             name: (string) config('opensearch.indices.kb'),

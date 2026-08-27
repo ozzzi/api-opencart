@@ -93,37 +93,18 @@ final class ClarificationGate implements ClarificationGateInterface
     // -------------------------------------------------------------------------
 
     /**
-     * Words that actually narrow the search. Everything shorter than three
-     * characters or listed as a stop word is dropped, so "я хочу браслет"
-     * counts as one term while "браслет кобра з фастексом" counts as three.
+     * Words that actually narrow the search, so "я хочу браслет" counts as one
+     * term while "браслет кобра з фастексом" counts as three.
      *
-     * No stemming on purpose: a missed match only means the gate stays shut and
-     * behaviour falls back to what it was before the gate existed.
+     * Shared with HybridSearcher's coverage bonus — see QueryTerms for the rule
+     * itself and why both callers must agree on it.
      *
      * @return list<string> Sorted and de-duplicated, so it can be compared
      *                      against the stored terms of the previous query.
      */
     public function significantTerms(string $query): array
     {
-        $tokens = preg_split('/[^\p{L}\p{N}]+/u', mb_strtolower($query), flags: PREG_SPLIT_NO_EMPTY);
-
-        if ($tokens === false) {
-            return [];
-        }
-
-        /** @var list<string> $stopWords */
-        $stopWords = (array) config('bot.clarification.stop_words', []);
-
-        $terms = array_filter(
-            $tokens,
-            static fn (string $token): bool => mb_strlen($token) >= 3
-                && ! in_array($token, $stopWords, strict: true),
-        );
-
-        $terms = array_values(array_unique($terms));
-        sort($terms);
-
-        return $terms;
+        return QueryTerms::significant($query);
     }
 
     /**
