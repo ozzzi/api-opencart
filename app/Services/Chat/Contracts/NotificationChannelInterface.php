@@ -7,4 +7,6 @@ namespace App\Services\Chat\Contracts;
 interface NotificationChannelInterface
 {
     public function send(string $subject, string $body): void;
+
+    public function isEnabled(): bool;
 }

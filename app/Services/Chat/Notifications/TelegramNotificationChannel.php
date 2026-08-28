@@ -17,12 +17,16 @@ final class TelegramNotificationChannel implements NotificationChannelInterface
     ) {
     }
 
+    public function isEnabled(): bool
+    {
+        return $this->settings->leadTelegramEnabled
+            && $this->settings->leadTelegramBotToken !== ''
+            && $this->settings->leadTelegramChatId !== '';
+    }
+
     public function send(string $subject, string $body): void
     {
-        if (! $this->settings->leadTelegramEnabled
-            || $this->settings->leadTelegramBotToken === ''
-            || $this->settings->leadTelegramChatId === ''
-        ) {
+        if (! $this->isEnabled()) {
             return;
         }
 

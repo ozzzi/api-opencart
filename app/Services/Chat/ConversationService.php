@@ -8,6 +8,7 @@ use App\Exceptions\Chat\SessionNotFoundException;
 use App\Jobs\SendNewDialogNotificationJob;
 use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\AlertNotifierInterface;
 use App\Services\Chat\Contracts\ConversationServiceInterface;
 use App\Services\Chat\DTO\LlmChatMessage;
 use App\Services\Chat\DTO\ToolCall;
@@ -18,6 +19,7 @@ final class ConversationService implements ConversationServiceInterface
 {
     public function __construct(
         private readonly BotChatSettings $settings,
+        private readonly AlertNotifierInterface $notifier,
     ) {
     }
 
@@ -89,7 +91,7 @@ final class ConversationService implements ConversationServiceInterface
         $session->last_activity_at = now();
         $session->save();
 
-        if ($isFirstUserMessage) {
+        if ($isFirstUserMessage && $this->notifier->isEnabled()) {
             SendNewDialogNotificationJob::dispatch($session->id);
         }
 

@@ -80,6 +80,33 @@ final class TelegramNotificationChannelTest extends TestCase
         Http::assertSentCount(0);
     }
 
+    public function test_is_enabled_only_with_the_switch_on_and_full_credentials(): void
+    {
+        $this->settings->leadTelegramEnabled = true;
+        $this->settings->leadTelegramBotToken = 'token';
+        $this->settings->leadTelegramChatId = '123';
+
+        $this->assertTrue($this->makeChannel()->isEnabled());
+    }
+
+    public function test_is_not_enabled_when_the_administrator_switched_it_off(): void
+    {
+        $this->settings->leadTelegramEnabled = false;
+        $this->settings->leadTelegramBotToken = 'token';
+        $this->settings->leadTelegramChatId = '123';
+
+        $this->assertFalse($this->makeChannel()->isEnabled());
+    }
+
+    public function test_is_not_enabled_with_incomplete_credentials(): void
+    {
+        $this->settings->leadTelegramEnabled = true;
+        $this->settings->leadTelegramBotToken = 'token';
+        $this->settings->leadTelegramChatId = '';
+
+        $this->assertFalse($this->makeChannel()->isEnabled());
+    }
+
     private function makeChannel(): TelegramNotificationChannel
     {
         return new TelegramNotificationChannel($this->settings);

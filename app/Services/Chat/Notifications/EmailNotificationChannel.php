@@ -18,9 +18,14 @@ final class EmailNotificationChannel implements NotificationChannelInterface
     ) {
     }
 
+    public function isEnabled(): bool
+    {
+        return $this->settings->leadEmailEnabled && $this->settings->leadEmailRecipient !== '';
+    }
+
     public function send(string $subject, string $body): void
     {
-        if (! $this->settings->leadEmailEnabled || $this->settings->leadEmailRecipient === '') {
+        if (! $this->isEnabled()) {
             return;
         }
 

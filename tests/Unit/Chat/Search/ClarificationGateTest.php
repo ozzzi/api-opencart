@@ -6,6 +6,7 @@ namespace Tests\Unit\Chat\Search;
 
 use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\AlertNotifierInterface;
 use App\Services\Chat\ConversationService;
 use App\Services\Chat\Search\CatalogBreadthProbe;
 use App\Services\Chat\Search\ClarificationGate;
@@ -50,9 +51,13 @@ final class ClarificationGateTest extends TestCase
         /** @var Client $client */
         $client = $this->client;
 
+        $notifier = Mockery::mock(AlertNotifierInterface::class);
+        $notifier->allows('isEnabled')->andReturnFalse();
+
+        /** @var AlertNotifierInterface $notifier */
         $this->gate = new ClarificationGate(
             new CatalogBreadthProbe($client),
-            new ConversationService($this->settings),
+            new ConversationService($this->settings, $notifier),
             $this->settings,
         );
     }

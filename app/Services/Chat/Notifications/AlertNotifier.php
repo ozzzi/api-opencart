@@ -21,4 +21,15 @@ final class AlertNotifier implements AlertNotifierInterface
             $channel->send($subject, $body);
         }
     }
+
+    public function isEnabled(): bool
+    {
+        foreach ($this->channels as $channel) {
+            if ($channel->isEnabled()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

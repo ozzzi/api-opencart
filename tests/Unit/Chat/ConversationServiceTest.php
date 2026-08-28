@@ -8,12 +8,14 @@ use App\Exceptions\Chat\SessionNotFoundException;
 use App\Jobs\SendNewDialogNotificationJob;
 use App\Models\Bot\ChatMessage;
 use App\Models\Bot\ChatSession;
+use App\Services\Chat\Contracts\AlertNotifierInterface;
 use App\Services\Chat\ConversationService;
 use App\Services\Chat\DTO\LlmChatMessage;
 use App\Services\Chat\DTO\ToolCall;
 use App\Settings\BotChatSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Mockery;
 use ReflectionClass;
 use Tests\TestCase;
 
@@ -34,7 +36,7 @@ final class ConversationServiceTest extends TestCase
         $this->settings->contextWindowSize = 5;
         $this->settings->summaryThreshold = 10;
 
-        $this->service = new ConversationService($this->settings);
+        $this->service = $this->serviceWithNotifications(enabled: true);
     }
 
     // ── createSession ─────────────────────────────────────────────────────────
@@ -232,6 +234,37 @@ final class ConversationServiceTest extends TestCase
         Queue::assertNotPushed(SendNewDialogNotificationJob::class);
     }
 
+    /**
+     * The channels already refuse to deliver with notifications off, but only
+     * after a worker has dequeued the job and reloaded the session — a job per
+     * dialog whose whole purpose is to do nothing.
+     */
+    public function test_no_notification_is_queued_when_every_channel_is_disabled(): void
+    {
+        Queue::fake();
+        $session = ChatSession::factory()->create();
+
+        $this->serviceWithNotifications(enabled: false)
+            ->addMessage($session, 'user', 'Привіт');
+
+        Queue::assertNotPushed(SendNewDialogNotificationJob::class);
+    }
+
+    public function test_disabled_notifications_do_not_stop_the_message_from_being_stored(): void
+    {
+        Queue::fake();
+        $session = ChatSession::factory()->create();
+
+        $message = $this->serviceWithNotifications(enabled: false)
+            ->addMessage($session, 'user', 'Привіт');
+
+        $this->assertDatabaseHas('chat_messages', [
+            'id' => $message->id,
+            'session_id' => $session->id,
+            'content' => 'Привіт',
+        ]);
+    }
+
     public function test_new_dialog_notification_is_queued_on_the_notifications_queue(): void
     {
         Queue::fake();
@@ -401,6 +434,20 @@ final class ConversationServiceTest extends TestCase
 
         $this->assertTrue($state['opted_out']);
         $this->assertSame(2, $state['rounds']);
+    }
+
+    /**
+     * The administrator can switch every notification channel off; the service
+     * asks the notifier rather than reading the settings itself, so the tests
+     * drive it the same way.
+     */
+    private function serviceWithNotifications(bool $enabled): ConversationService
+    {
+        $notifier = Mockery::mock(AlertNotifierInterface::class);
+        $notifier->allows('isEnabled')->andReturn($enabled);
+
+        /** @var AlertNotifierInterface $notifier */
+        return new ConversationService($this->settings, $notifier);
     }
 
     private function sessionIdOf(SendNewDialogNotificationJob $job): string
