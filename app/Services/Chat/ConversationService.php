@@ -14,6 +14,7 @@ use App\Services\Chat\DTO\LlmChatMessage;
 use App\Services\Chat\DTO\ToolCall;
 use App\Settings\BotChatSettings;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 final class ConversationService implements ConversationServiceInterface
 {
@@ -106,12 +107,15 @@ final class ConversationService implements ConversationServiceInterface
      */
     public function buildContextWindow(ChatSession $session): array
     {
+        /** @var Collection<int, ChatMessage> $messages */
         $messages = $session->messages()
             ->orderByDesc('id')
             ->limit($this->settings->contextWindowSize)
             ->get()
             ->reverse()
             ->values();
+
+        $messages = $this->dropBrokenToolPairs($messages);
 
         $context = [];
 
@@ -125,7 +129,7 @@ final class ConversationService implements ConversationServiceInterface
         foreach ($messages as $message) {
             $context[] = new LlmChatMessage(
                 role: $message->role,
-                content: $message->content,
+                content: $this->replayContent($message),
                 toolCalls: $this->hydrateToolCalls($message->tool_calls),
                 toolCallId: $message->tool_call_id,
             );
@@ -167,6 +171,57 @@ final class ConversationService implements ConversationServiceInterface
     {
         $session->clarification_state = [...$this->getClarificationState($session), ...$state];
         $session->save();
+    }
+
+    /**
+     * @param  Collection<int, ChatMessage> $messages
+     * @return Collection<int, ChatMessage>
+     */
+    private function dropBrokenToolPairs(Collection $messages): Collection
+    {
+        do {
+            $before = $messages->count();
+
+            $announced = $messages
+                ->flatMap(static fn (ChatMessage $m): array => array_column((array) ($m->tool_calls ?? []), 'id'))
+                ->all();
+
+            $messages = $messages
+                ->reject(static fn (ChatMessage $m): bool => $m->role === 'tool'
+                    && ! in_array($m->tool_call_id, $announced, true))
+                ->values();
+
+            $answered = $messages
+                ->where('role', 'tool')
+                ->pluck('tool_call_id')
+                ->all();
+
+            $messages = $messages
+                ->reject(static function (ChatMessage $m) use ($answered): bool {
+                    $ids = array_column((array) ($m->tool_calls ?? []), 'id');
+
+                    return $ids !== [] && array_diff($ids, $answered) !== [];
+                })
+                ->values();
+        } while ($messages->count() !== $before);
+
+        return $messages;
+    }
+
+    private function replayContent(ChatMessage $message): ?string
+    {
+        $content = $message->content;
+        $limit = (int) config('bot.context.max_tool_content_chars', 1500);
+
+        if ($message->role !== 'tool' || $content === null || $limit <= 0) {
+            return $content;
+        }
+
+        if (mb_strlen($content) <= $limit) {
+            return $content;
+        }
+
+        return mb_substr($content, 0, $limit).'…[truncated]';
     }
 
     /**

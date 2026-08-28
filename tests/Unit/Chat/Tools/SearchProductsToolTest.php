@@ -123,7 +123,29 @@ final class SearchProductsToolTest extends TestCase
         $this->assertEquals(25000.0, $item['price']);
         $this->assertTrue($item['in_stock']);
         $this->assertSame('Ноутбуки', $item['category']);
-        $this->assertSame('http://shop.test/dell-xps', $item['url']);
+    }
+
+    /**
+     * url and image belong to the card, which show_products builds from live data. A
+     * model holding them can write a complete-looking answer in prose, and that is how
+     * the products block goes missing (task-structured-output.md §2.3).
+     */
+    public function test_execute_withholds_card_only_fields_and_says_nothing_is_shown_yet(): void
+    {
+        $this->retrieval
+            ->expects('retrieveProducts')
+            ->andReturn([
+                $this->makeFragment(42, 'Ноутбук Dell XPS', 25000.0, true, 'Ноутбуки', 'http://shop.test/dell-xps'),
+            ]);
+
+        $result = json_decode(
+            $this->tool->execute(['query' => 'ноутбук'], $this->makeSession('ru')),
+            true,
+        );
+
+        $this->assertArrayNotHasKey('url', $result['results'][0]);
+        $this->assertArrayNotHasKey('image', $result['results'][0]);
+        $this->assertStringContainsString('show_products', $result['note']);
     }
 
     // ── execute: filter passing ───────────────────────────────────────────────

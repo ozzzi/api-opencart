@@ -31,7 +31,8 @@ final class SearchProductsTool implements ToolInterface
     {
         return 'Search the product catalog for items matching a user query. '
             .'Supports optional filters for price range. '
-            .'Returns 2–4 matching products with name, price, availability, and a direct URL. '
+            .'Returns 2–4 candidate products with name, price and availability for you to reason over — '
+            .'the customer sees none of them until you call show_products. '
             .'When the query is too broad to pick anything meaningful, returns '
             .'status "need_clarification" with a slice of the catalog and no products at all — '
             .'ask one narrowing question built only from that slice. '
@@ -128,8 +129,6 @@ final class SearchProductsTool implements ToolInterface
                 'price'         => $src['price'] ?? null,
                 'in_stock'      => $src['in_stock'] ?? true,
                 'category'      => $src['category'] ?? null,
-                'url'           => $src['url'] ?? null,
-                'image'         => $src['image'] ?? null,
                 'score'         => round($fragment->score, 4),
                 'matched_terms' => $matched,
                 'snippet'       => $this->snippet((string) ($src['description'] ?? ''), $matched),
@@ -137,7 +136,13 @@ final class SearchProductsTool implements ToolInterface
         }, $fragments);
 
         return json_encode(
-            ['status' => 'ok', 'results' => $results, 'found' => true],
+            [
+                'status'  => 'ok',
+                'results' => $results,
+                'found'   => true,
+                'note'    => 'Candidates for your reasoning only. Nothing has been shown to the '
+                    .'customer yet — call show_products with the product_ids you recommend to display cards.',
+            ],
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
         );
     }

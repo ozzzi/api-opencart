@@ -338,18 +338,11 @@ final class ConversationServiceTest extends TestCase
     public function test_build_context_window_hydrates_tool_calls_as_dto_objects(): void
     {
         $session = ChatSession::factory()->create();
-        ChatMessage::factory()->create([
-            'session_id' => $session->id,
-            'role' => 'assistant',
-            'content' => '',
-            'tool_calls' => [
-                ['id' => 'call_1', 'name' => 'search_products', 'arguments' => ['query' => 'laptop']],
-            ],
-        ]);
+        $this->createToolExchange($session, 'call_1');
 
         $context = $this->service->buildContextWindow($session);
 
-        $this->assertCount(1, $context);
+        $this->assertCount(2, $context);
         $this->assertIsArray($context[0]->toolCalls);
         $this->assertInstanceOf(ToolCall::class, $context[0]->toolCalls[0]);
         $this->assertSame('call_1', $context[0]->toolCalls[0]->id);
@@ -360,17 +353,118 @@ final class ConversationServiceTest extends TestCase
     public function test_build_context_window_includes_tool_call_id_for_tool_messages(): void
     {
         $session = ChatSession::factory()->create();
+        $this->createToolExchange($session, 'call_1');
+
+        $context = $this->service->buildContextWindow($session);
+
+        $this->assertCount(2, $context);
+        $this->assertSame('call_1', $context[1]->toolCallId);
+    }
+
+    // ── buildContextWindow: broken tool pairs ─────────────────────────────────
+
+    public function test_build_context_window_drops_tool_message_whose_call_was_cut_off(): void
+    {
+        $session = ChatSession::factory()->create();
+
+        // What the window looks like when the slice lands between the assistant's
+        // tool_calls message and its result: OpenAI rejects the orphan with a 400.
         ChatMessage::factory()->create([
             'session_id' => $session->id,
             'role' => 'tool',
-            'content' => '{"results":[]}',
-            'tool_call_id' => 'call_1',
+            'content' => '{"status":"ok"}',
+            'tool_call_id' => 'call_gone',
+        ]);
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'assistant',
+            'content' => 'Ось варіанти.',
         ]);
 
         $context = $this->service->buildContextWindow($session);
 
         $this->assertCount(1, $context);
-        $this->assertSame('call_1', $context[0]->toolCallId);
+        $this->assertSame('assistant', $context[0]->role);
+    }
+
+    public function test_build_context_window_drops_tool_call_message_whose_results_were_cut_off(): void
+    {
+        $session = ChatSession::factory()->create();
+
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'assistant',
+            'content' => '',
+            'tool_calls' => [
+                ['id' => 'call_1', 'name' => 'search_products', 'arguments' => []],
+                ['id' => 'call_2', 'name' => 'search_products', 'arguments' => []],
+            ],
+        ]);
+
+        // Only one of the two announced calls was answered inside the window.
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'tool',
+            'content' => '{"status":"ok"}',
+            'tool_call_id' => 'call_1',
+        ]);
+
+        $context = $this->service->buildContextWindow($session);
+
+        // Dropping the assistant message orphans its answered result, which the
+        // fixed-point pass then removes too.
+        $this->assertSame([], $context);
+    }
+
+    public function test_build_context_window_keeps_a_complete_tool_exchange(): void
+    {
+        $session = ChatSession::factory()->create();
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'user',
+            'content' => 'браслет кобра',
+        ]);
+        $this->createToolExchange($session, 'call_1');
+
+        $context = $this->service->buildContextWindow($session);
+
+        $this->assertCount(3, $context);
+        $this->assertSame(['user', 'assistant', 'tool'], array_map(
+            static fn ($m): string => $m->role,
+            $context,
+        ));
+    }
+
+    // ── buildContextWindow: replayed tool payloads ────────────────────────────
+
+    public function test_build_context_window_truncates_replayed_tool_payloads(): void
+    {
+        config(['bot.context.max_tool_content_chars' => 50]);
+
+        $session = ChatSession::factory()->create();
+        $this->createToolExchange($session, 'call_1', str_repeat('крем', 100));
+
+        $context = $this->service->buildContextWindow($session);
+
+        $this->assertSame(50 + mb_strlen('…[truncated]'), mb_strlen((string) $context[1]->content));
+        $this->assertStringEndsWith('…[truncated]', (string) $context[1]->content);
+    }
+
+    public function test_build_context_window_leaves_non_tool_messages_untruncated(): void
+    {
+        config(['bot.context.max_tool_content_chars' => 10]);
+
+        $session = ChatSession::factory()->create();
+        $long = str_repeat('слово ', 50);
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'user',
+            'content' => $long,
+        ]);
+
+        $context = $this->service->buildContextWindow($session);
+
+        $this->assertSame($long, $context[0]->content);
     }
 
     // ── needsSummarization ────────────────────────────────────────────────────
@@ -434,6 +528,25 @@ final class ConversationServiceTest extends TestCase
 
         $this->assertTrue($state['opted_out']);
         $this->assertSame(2, $state['rounds']);
+    }
+
+    private function createToolExchange(ChatSession $session, string $callId, string $result = '{"status":"ok"}'): void
+    {
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'assistant',
+            'content' => '',
+            'tool_calls' => [
+                ['id' => $callId, 'name' => 'search_products', 'arguments' => ['query' => 'laptop']],
+            ],
+        ]);
+
+        ChatMessage::factory()->create([
+            'session_id' => $session->id,
+            'role' => 'tool',
+            'content' => $result,
+            'tool_call_id' => $callId,
+        ]);
     }
 
     /**

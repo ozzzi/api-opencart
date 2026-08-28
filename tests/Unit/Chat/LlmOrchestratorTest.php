@@ -24,6 +24,7 @@ use App\Services\Chat\DTO\Blocks\ProductsBlock;
 use App\Services\Chat\LlmOrchestrator;
 use App\Services\Chat\Presentation\BlockCollector;
 use App\Settings\BotLlmSettings;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
 use Mockery\MockInterface;
@@ -33,6 +34,11 @@ use Generator;
 
 final class LlmOrchestratorTest extends TestCase
 {
+    /**
+     * A search_products result the model could have put on a card — what arms the guard.
+     */
+    private const string SEARCH_OK_RESULT =
+        '{"status":"ok","results":[{"product_id":60,"name":"Kobra","price":65}],"found":true}';
     private MockInterface $llmClient;
     private MockInterface $conversationService;
     private MockInterface $toolRegistry;
@@ -443,6 +449,259 @@ final class LlmOrchestratorTest extends TestCase
         $this->assertSame(['text'], array_column($this->persistedParts, 'type'));
     }
 
+    // ── cost accounting ───────────────────────────────────────────────────────
+
+    /**
+     * FR-8.1 wants a row per call. Logging only the answering one hid every tool round
+     * from llm_api_calls — and from the budget guard, which reads that spend back.
+     */
+    public function test_every_model_call_in_a_tool_loop_is_logged(): void
+    {
+        $this->allowPassThrough();
+        $this->toolRegistry->allows('execute')->andReturn('{"shown":true}');
+
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse(),
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Готово.'),
+        );
+
+        $this->costTracker->expects('log')->times(3);
+
+        $this->make()->processMessage($this->makeSession(), 'Hi');
+    }
+
+    public function test_a_tool_round_is_logged_against_the_message_it_produced(): void
+    {
+        $this->allowPassThrough();
+        $this->toolRegistry->allows('execute')->andReturn('{"shown":true}');
+
+        $this->conversationService->shouldReceive('addMessage')
+            ->andReturnUsing(fn (...$args): ChatMessage => $this->stubMessage(
+                isset($args[3]['tool_calls']) ? 555 : 1,
+            ));
+
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Готово.'),
+        );
+
+        $messageIds = [];
+        $this->costTracker->allows('log')->andReturnUsing(
+            function (...$args) use (&$messageIds): void {
+                $messageIds[] = $args[1];
+            },
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'Hi');
+
+        // The tool round points at its own assistant message, the answer at the reply.
+        $this->assertSame([555, 1], $messageIds);
+    }
+
+    public function test_an_answer_discarded_by_the_repair_pass_is_still_billed(): void
+    {
+        $this->allowPassThrough();
+        $this->routeToolExecution();
+
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('Ось Кобра за 65 грн.'),
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Класичне плетіння.'),
+        );
+
+        // Search round, the discarded answer, the show_products round, the real answer.
+        $this->costTracker->expects('log')->times(4);
+
+        $this->make()->processMessage($this->makeSession(), 'плетення кобра');
+    }
+
+    public function test_the_discarded_answer_is_logged_without_a_message_id(): void
+    {
+        $this->allowPassThrough();
+        $this->routeToolExecution();
+
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('Ось Кобра за 65 грн.'),
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Класичне плетіння.'),
+        );
+
+        $messageIds = [];
+        $this->costTracker->allows('log')->andReturnUsing(
+            function (...$args) use (&$messageIds): void {
+                $messageIds[] = $args[1];
+            },
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'плетення кобра');
+
+        // It is the one call in a turn that never becomes a row in chat_messages.
+        $this->assertNull($messageIds[1]);
+    }
+
+    public function test_tokens_used_on_the_reply_covers_the_whole_turn(): void
+    {
+        $this->allowPassThrough();
+        $this->toolRegistry->allows('execute')->andReturn('{"shown":true}');
+
+        // makeToolCallResponse bills 10 + 5, makeResponse bills 50 + 10.
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Готово.'),
+        );
+
+        $tokens = null;
+        $this->conversationService->shouldReceive('addMessage')
+            ->andReturnUsing(function (...$args) use (&$tokens): ChatMessage {
+                if (isset($args[3]['parts'])) {
+                    $tokens = $args[3]['tokens_used'];
+                }
+
+                return $this->stubMessage();
+            });
+
+        $this->make()->processMessage($this->makeSession(), 'Hi');
+
+        $this->assertSame(75, $tokens);
+    }
+
+    // ── products block guard ──────────────────────────────────────────────────
+
+    /**
+     * The invariant the guard defends: a search that found products must end in cards
+     * built from live data, never in prose the model composed from the search hits.
+     */
+    public function test_repair_pass_recovers_a_products_block_the_model_skipped(): void
+    {
+        $this->allowPassThrough();
+        $this->capturePersistedAssistantMessage();
+        $this->routeToolExecution();
+
+        $this->llmClient->expects('complete')->times(4)->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('Ось Кобра за 65 грн: http://shop.test/kobra'),
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Класичне плетіння, підійде для щоденного носіння.'),
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'плетення кобра');
+
+        $this->assertSame(['products', 'text'], array_column($this->persistedParts, 'type'));
+    }
+
+    public function test_repair_pass_discards_the_prose_that_restated_the_facts(): void
+    {
+        $this->allowPassThrough();
+        $this->capturePersistedAssistantMessage();
+        $this->routeToolExecution();
+
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('Ось Кобра за 65 грн: http://shop.test/kobra'),
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Класичне плетіння, підійде для щоденного носіння.'),
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'плетення кобра');
+
+        $this->assertSame('Класичне плетіння, підійде для щоденного носіння.', $this->persistedContent);
+    }
+
+    public function test_repair_pass_streams_the_recovered_block(): void
+    {
+        $this->allowPassThrough();
+        $this->routeToolExecution();
+
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('Ось Кобра за 65 грн.'),
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Класичне плетіння.'),
+        );
+
+        $chunks = iterator_to_array(
+            $this->make()->processMessage($this->makeSession(), 'плетення кобра', stream: true),
+            false,
+        );
+
+        $types = array_map(static fn ($chunk) => $chunk->type, $chunks);
+
+        $this->assertContains(StreamChunkType::Block, $types);
+        $this->assertLessThan(
+            array_search(StreamChunkType::Done, $types, true),
+            array_search(StreamChunkType::Block, $types, true),
+        );
+    }
+
+    public function test_no_repair_when_the_model_showed_the_card_itself(): void
+    {
+        $this->allowPassThrough();
+        $this->routeToolExecution();
+
+        // Search, show_products, final reply — and nothing more.
+        $this->llmClient->expects('complete')->times(3)->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeToolCallResponse(),
+            $this->makeResponse('Класичне плетіння.'),
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'плетення кобра');
+    }
+
+    public function test_no_repair_when_the_search_asked_for_clarification(): void
+    {
+        $this->allowPassThrough();
+        $this->toolRegistry->allows('execute')->andReturn(
+            '{"status":"need_clarification","reason":"broad_query","total_hits":16,"products":[]}',
+        );
+
+        $this->llmClient->expects('complete')->twice()->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('Уточніть, будь ласка, який бюджет?'),
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'браслет кобра');
+    }
+
+    public function test_no_repair_when_the_search_found_nothing(): void
+    {
+        $this->allowPassThrough();
+        $this->toolRegistry->allows('execute')->andReturn('{"status":"empty","results":[],"found":false}');
+
+        $this->llmClient->expects('complete')->twice()->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('На жаль, нічого не знайшлося.'),
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'браслет кобра');
+    }
+
+    public function test_reply_survives_a_model_that_ignores_the_repair(): void
+    {
+        $this->allowPassThrough();
+        $this->capturePersistedAssistantMessage();
+        $this->routeToolExecution(showEmitsBlock: false);
+
+        Log::shouldReceive('channel')->with('chat')->andReturnSelf();
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(static fn (string $message): bool => str_contains($message, 'showed no card'));
+
+        $this->llmClient->allows('complete')->andReturn(
+            $this->makeSearchCallResponse(),
+            $this->makeResponse('Ось Кобра за 65 грн.'),
+            $this->makeResponse('Ось Кобра за 65 грн.'),
+        );
+
+        $this->make()->processMessage($this->makeSession(), 'плетення кобра');
+
+        $this->assertSame(['text'], array_column($this->persistedParts, 'type'));
+        $this->assertSame('Ось Кобра за 65 грн.', $this->persistedContent);
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     /**
@@ -470,6 +729,34 @@ final class LlmOrchestratorTest extends TestCase
 
             return '{"shown":true}';
         });
+    }
+
+    private function makeSearchCallResponse(): LlmResponse
+    {
+        return new LlmResponse(
+            content: null,
+            toolCalls: [new ToolCall('tc-search', 'search_products', ['query' => 'браслет кобра'])],
+            finishReason: 'tool_calls',
+            usage: new UsageStats(10, 5, 0.0),
+        );
+    }
+
+    /** search_products answers with hits; show_products emits the card, unless told not to. */
+    private function routeToolExecution(bool $showEmitsBlock = true): void
+    {
+        $this->toolRegistry->allows('execute')->andReturnUsing(
+            function (string $name) use ($showEmitsBlock): string {
+                if ($name === 'search_products') {
+                    return self::SEARCH_OK_RESULT;
+                }
+
+                if ($showEmitsBlock) {
+                    $this->blockCollector->push(new ProductsBlock([]));
+                }
+
+                return '{"shown":true}';
+            },
+        );
     }
 
     private function makeToolCallResponse(?string $content = null): LlmResponse

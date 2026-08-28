@@ -73,6 +73,7 @@ return [
         'window_size'       => 10,
         'summary_threshold' => 20,
         'max_tokens'        => 4096,
+        'max_tool_content_chars' => 1500,
     ],
 
     /*
