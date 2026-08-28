@@ -98,6 +98,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 - Use explicit return type declarations and type hints for all method parameters: `function isAccessible(User $user, ?string $path = null): bool`
 - Use TitleCase for Enum keys: `FavoritePerson`, `BestLake`, `Monthly`.
 - Prefer PHPDoc blocks over inline comments. Only add inline comments for exceptionally complex logic.
+- Do not write meaningless comments. A comment must explain *why*, not restate *what* the code already says. Never add PHPDoc or inline comments that merely repeat the class, method, or variable name (e.g. `/** Get the user */` above `getUser()`, `// increment counter` above `$counter++`), and never add PHPDoc blocks that only duplicate signature types already declared in code. If a comment adds no information beyond the code itself, omit it.
 - Use array shape type definitions in PHPDoc blocks.
 - Always import classes with `use` statements at the top of the file. Never use inline fully-qualified class names (e.g., use `Carbon` after `use Carbon\Carbon;`, not `\Carbon\Carbon::now()` inline).
 
